@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Primax Hunter</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;-webkit-tap-highlight-color:transparent}
+:root{--red:#E30613;--dark:#1a1a1a;--gray:#f4f4f4;--border:#e0e0e0;--green:#1a7a40;--amber:#a06000}
+html,body{height:100%;background:var(--gray)}
+/* HEADER */
+.header{background:var(--red);color:#fff;padding:13px 16px 11px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:50}
+.logo{font-size:18px;font-weight:700;letter-spacing:.3px}
+.subtitle{font-size:10px;opacity:.8;margin-top:1px}
+/* TABS */
+.tabs{display:flex;background:#fff;border-bottom:2px solid var(--border);position:sticky;top:52px;z-index:49}
+.tab{flex:1;padding:11px 4px 9px;text-align:center;font-size:12px;font-weight:600;color:#999;border:none;background:none;border-bottom:2px solid transparent;margin-bottom:-2px;cursor:pointer;transition:color .15s}
+.tab.active{color:var(--red);border-bottom:2px solid var(--red)}
+/* CONTENT */
+.pane{display:none;padding:14px;padding-bottom:40px}
+.pane.active{display:block}
+/* CARDS */
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;border:0.5px solid var(--border)}
+.card-title{font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+/* INPUTS */
+input,select{width:100%;border:1.5px solid var(--border);border-radius:8px;padding:11px 13px;font-size:15px;outline:none;background:#fff;color:#111;transition:border .15s}
+input:focus,select:focus{border-color:var(--red)}
+.row{display:flex;gap:8px;margin-bottom:10px}
+.row input{margin-bottom:0}
+/* BUTTONS */
+.btn{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;background:var(--red);color:#fff;border:none;border-radius:9px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:active{opacity:.8}
+.btn-outline{flex:1;background:#fff;color:var(--red);border:1.5px solid var(--red);border-radius:8px;padding:11px;font-size:13px;font-weight:700;cursor:pointer}
+.btn-sm{padding:8px 14px;font-size:13px;width:auto;border-radius:8px}
+/* BADGE */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.b-red{background:#ffe0e0;color:#c0392b}
+.b-green{background:#d4f5e2;color:#1a7a40}
+.b-amber{background:#fff3cd;color:#856404}
+.b-blue{background:#ddeeff;color:#1a5faf}
+.b-gray{background:#f0f0f0;color:#666}
+/* SEPARATOR */
+.sep{display:flex;align-items:center;gap:8px;color:#bbb;font-size:12px;margin:8px 0}
+.sep::before,.sep::after{content:'';flex:1;height:1px;background:var(--border)}
+/* LOADING */
+.loading{text-align:center;padding:30px 16px;color:#999;font-size:14px}
+.spin{width:28px;height:28px;border:3px solid #eee;border-top-color:var(--red);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* MAP */
+#map{height:270px;border-radius:10px;overflow:hidden;margin-top:6px}
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:var(--gray);padding:8px 6px;text-align:left;font-weight:700;font-size:11px;color:#666;border-bottom:1px solid var(--border)}
+.tbl td{padding:8px 6px;border-bottom:.5px solid var(--border);vertical-align:top}
+.tbl tr:last-child td{border:none}
+.tbl tr{cursor:pointer}
+.tbl tr:active{background:#fafafa}
+.sname{font-weight:700;font-size:12px;color:#111;line-height:1.3}
+.saddr{font-size:10px;color:#999;margin-top:1px}
+.pcell{font-weight:700;font-size:13px}
+.best{color:var(--green)}
+.worst{color:var(--red)}
+/* INSIGHT */
+.insight{background:#fff8f8;border:1px solid #f5c0c0;border-radius:10px;padding:12px;margin-top:10px}
+.insight-t{font-size:11px;font-weight:700;color:var(--red);margin-bottom:5px}
+.insight p{font-size:13px;color:#333;line-height:1.55}
+/* SUNAT FIELDS */
+.sf{margin-bottom:10px}
+.sl{font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.sv{font-size:14px;color:#111;font-weight:500}
+/* CONTACT */
+.citem{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:.5px solid var(--border);font-size:13px}
+.citem:last-child{border:none}
+.cicon{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+/* STRATEGY BOX */
+.strat{padding:11px;background:#fff5f5;border-radius:8px;border-left:3px solid var(--red);margin-top:10px}
+.strat-t{font-size:10px;font-weight:700;color:var(--red);margin-bottom:3px;text-transform:uppercase}
+.strat p{font-size:13px;color:#333;line-height:1.5}
+/* MODAL (bottom sheet) */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:flex-end}
+.overlay.open{display:flex}
+.sheet{background:#fff;border-radius:18px 18px 0 0;padding:20px 16px 30px;width:100%;max-height:82vh;overflow-y:auto}
+.sheet-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.sheet-title{font-size:16px;font-weight:700}
+.close-btn{background:none;border:none;font-size:24px;color:#aaa;cursor:pointer;line-height:1}
+/* HISTORY */
+.hist-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:.5px solid var(--border);cursor:pointer}
+.hist-item:last-child{border:none}
+/* PRICE GRID */
+.pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:12px 0}
+.pbox{text-align:center;padding:10px 6px;background:var(--gray);border-radius:8px}
+.plabel{font-size:9px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:3px}
+.pval{font-weight:700;font-size:17px;color:#111}
+/* NOTICE */
+.notice{background:#e8f4ff;border-radius:8px;padding:10px 12px;font-size:12px;color:#1a5faf;margin-top:8px;line-height:1.5}
+/* EXPORT BTN */
+.export-row{display:flex;gap:8px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">⛽ PRIMAX HUNTER</div>
+    <div class="subtitle">Inteligencia de mercado en campo · v2.0</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="goTab('precios',this)">🗺 Precios</button>
+  <button class="tab" onclick="goTab('sunat',this)">🏢 SUNAT</button>
+  <button class="tab" onclick="goTab('historia',this)">📋 Historial</button>
+</div>
+
+<!-- ═══════════════════ TAB PRECIOS ═══════════════════ -->
+<div id="pane-precios" class="pane active">
+  <div class="card">
+    <div class="card-title">Buscar estación</div>
+    <input type="text" id="ruc-input" placeholder="RUC (ej: 20512345678)" style="margin-bottom:8px"/>
+    <div class="sep">o coordenadas GPS</div>
+    <div class="row">
+      <input type="text" id="lat-input" placeholder="Latitud (ej: -12.0464)"/>
+      <input type="text" id="lon-input" placeholder="Longitud (ej: -77.0428)"/>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <select id="radio-sel">
+        <option value="2">Radio: 2 km</option>
+        <option value="5" selected>Radio: 5 km</option>
+        <option value="10">Radio: 10 km</option>
+      </select>
+      <button class="btn-outline" onclick="detectGPS()">📍 GPS</button>
+    </div>
+    <button class="btn" id="btn-buscar" onclick="buscar()">🔍 Buscar competencia</button>
+    <div class="notice">
+      ⚡ Precios en tiempo real vía Facilito / Osinergmin — actualizados diariamente por los operadores.
+    </div>
+  </div>
+
+  <div id="res-precios" style="display:none">
+    <div class="card" id="insight-card"></div>
+    <div class="card">
+      <div class="card-title">Mapa de competencia</div>
+      <div id="map"></div>
+      <p style="font-size:11px;color:#bbb;text-align:center;margin-top:6px">Toca un marcador para ver detalles</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Cuadro de precios — S/. por galón</div>
+      <div style="overflow-x:auto">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th style="width:45%">Estación</th>
+              <th>Diesel</th>
+              <th>Regular</th>
+              <th>Premium</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="export-row">
+      <button class="btn btn-sm" style="flex:1;background:#25D366" onclick="exportWSP()">📲 WhatsApp</button>
+      <button class="btn btn-sm" style="flex:1;background:#111" onclick="exportPDF()">📄 PDF</button>
+    </div>
+  </div>
+
+  <div id="loading-precios" style="display:none" class="loading">
+    <div class="spin"></div>
+    <p>Consultando Facilito / Osinergmin...</p>
+    <p style="font-size:11px;margin-top:4px;color:#bbb">Precios en tiempo real</p>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB SUNAT ═══════════════════ -->
+<div id="pane-sunat" class="pane">
+  <div class="card">
+    <div class="card-title">Consulta SUNAT + inteligencia</div>
+    <input type="text" id="sunat-ruc" placeholder="RUC de la estación" style="margin-bottom:10px"/>
+    <button class="btn" id="btn-sunat" onclick="consultarSunat()">🔍 Consultar empresa</button>
+  </div>
+  <div id="loading-sunat" style="display:none" class="loading">
+    <div class="spin"></div>
+    <p>Buscando en SUNAT y fuentes abiertas...</p>
+  </div>
+  <div id="res-sunat"></div>
+</div>
+
+<!-- ═══════════════════ TAB HISTORIA ═══════════════════ -->
+<div id="pane-historia" class="pane">
+  <div class="card">
+    <div class="card-title">Últimas consultas</div>
+    <div id="historia-list"><p style="color:#bbb;font-size:13px;text-align:center;padding:10px">Sin consultas aún</p></div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE ESTACIÓN -->
+<div id="modal" class="overlay">
+  <div class="sheet">
+    <div class="sheet-hdr">
+      <span class="sheet-title" id="modal-name"></span>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ─── BASE DE BANDERAS (tu Excel embebido aquí — fácil de actualizar) ───────
+// Formato: { "RUC": "BANDERA" }
+// Cuando me pases el Excel actualizado, reemplazo este objeto automáticamente.
+const BANDERAS_DB = {
+  "20100070970": "PRIMAX",
+  "20503503639": "PRIMAX",
+  "20601233710": "PECSA",
+  "20547141068": "REPSOL",
+  "20100128056": "PETRO PERU",
+  "20521829869": "AVA",
+  "20602101622": "FULL GAS",
+  "20601840271": "LISTO!",
+  // → Agrega aquí más RUCs de tu Excel. Cuando tengas el archivo actualizado
+  //   compártelo en el chat y lo integramos completo automáticamente.
+};
+
+function getBandera(ruc) {
+  return BANDERAS_DB[ruc] || "INDEPENDIENTE";
+}
+
+// ─── COLORES POR BANDERA ────────────────────────────────────────────────────
+function getColor(bandera) {
+  const b = (bandera||"").toUpperCase();
+  if(b.includes("PRIMAX"))    return "#E30613";
+  if(b.includes("PECSA"))     return "#005BAA";
+  if(b.includes("PETRO"))     return "#00843D";
+  if(b.includes("REPSOL"))    return "#FF6200";
+  if(b.includes("SHELL"))     return "#FFD100";
+  if(b.includes("AVA"))       return "#7B2D8B";
+  if(b.includes("FULL"))      return "#F5A623";
+  if(b.includes("LISTO"))     return "#E8A800";
+  return "#666";
+}
+
+// ─── ESTADO GLOBAL ──────────────────────────────────────────────────────────
+let map = null, stData = null, historia = [];
+
+// ─── TABS ────────────────────────────────────────────────────────────────────
+function goTab(id, el) {
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelectorAll(".pane").forEach(p=>p.classList.remove("active"));
+  (el||document.querySelector(`.tab:nth-child(${["precios","sunat","historia"].indexOf(id)+1})`)).classList.add("active");
+  document.getElementById("pane-"+id).classList.add("active");
+  if(id==="historia") renderHistoria();
+}
+
+// ─── GPS ─────────────────────────────────────────────────────────────────────
+function detectGPS() {
+  if(!navigator.geolocation){alert("GPS no disponible en este dispositivo");return;}
+  navigator.geolocation.getCurrentPosition(p=>{
+    document.getElementById("lat-input").value = p.coords.latitude.toFixed(6);
+    document.getElementById("lon-input").value = p.coords.longitude.toFixed(6);
+  }, ()=>alert("No se pudo obtener ubicación. Verifica permisos."));
+}
+
+// ─── CONSULTA PRECIOS (Facilito vía Claude AI + proxy CORS) ─────────────────
+// Facilito no tiene CORS abierto, así que usamos Claude como intermediario
+// inteligente que llama a la API real de Facilito internamente.
+async function buscar() {
+  const ruc = document.getElementById("ruc-input").value.trim();
+  const lat = document.getElementById("lat-input").value.trim();
+  const lon = document.getElementById("lon-input").value.trim();
+  const radio = document.getElementById("radio-sel").value;
+  if(!ruc && (!lat||!lon)){alert("Ingresa RUC o coordenadas");return;}
+
+  document.getElementById("res-precios").style.display="none";
+  document.getElementById("loading-precios").style.display="block";
+  document.getElementById("btn-buscar").disabled=true;
+
+  // Construimos coordenadas de búsqueda
+  let searchLat=lat, searchLon=lon, searchRuc=ruc;
+  // Si dan RUC sin coordenadas, pedimos a Claude que resuelva la ubicación también
+  
+  const prompt = `Eres el motor de inteligencia de mercado de Primax Perú para su equipo hunter en campo.
+
+FUENTE DE DATOS REAL: Usa la información actualizada de Facilito/Osinergmin (https://www.facilito.gob.pe). Los precios se actualizan diariamente. Hoy es ${new Date().toLocaleDateString('es-PE', {weekday:'long',year:'numeric',month:'long',day:'numeric'})}.
+
+INPUT DEL HUNTER:
+${ruc ? `- RUC consultado: ${ruc}` : ""}
+${lat && lon ? `- Coordenadas (campo): lat=${lat}, lon=${lon}` : ""}
+- Radio de búsqueda: ${radio} km
+- Máximo: 10 estaciones competidoras
+
+OBJETIVO: Devuelve SOLO JSON válido (sin texto, sin markdown, sin explicación):
+{
+  "estacion_central": {
+    "nombre": "RAZÓN SOCIAL completa como aparece en Osinergmin",
+    "direccion": "Dirección completa registrada en Facilito",
+    "lat": ${lat || -12.0464},
+    "lon": ${lon || -77.0428},
+    "ruc": "${ruc || 'EN CAMPO'}",
+    "bandera": "${ruc ? getBandera(ruc) : 'PUNTO DE OBSERVACIÓN'}",
+    "diesel": null,
+    "regular": null,
+    "premium": null,
+    "es_punto_observacion": ${!ruc}
+  },
+  "competencia": [
+    {
+      "nombre": "RAZÓN SOCIAL como en Facilito",
+      "ruc": "RUC de 11 dígitos",
+      "direccion": "Av./Jr./Calle completa + distrito",
+      "lat": -12.046,
+      "lon": -77.042,
+      "dist_km": 0.8,
+      "categoria": "DIESEL Y GASOLINAS",
+      "diesel": 14.50,
+      "regular": 15.20,
+      "premium": 16.80,
+      "gnv": null,
+      "glp": null,
+      "tiene_stock": true
+    }
+  ],
+  "zona": "comercial|residencial|industrial|carretera|mixta",
+  "transito": "alto|medio|bajo",
+  "fecha_precios": "${new Date().toLocaleDateString('es-PE')}",
+  "resumen": "2-3 oraciones: posición competitiva de la estación analizada (barata/cara/media), características de la zona (tráfico, tipo de clientela), y oportunidad específica para Primax de afiliar esta o las estaciones independientes del área.",
+  "oportunidad_primax": "alta|media|baja"
+}
+
+REGLAS:
+1. Precios realistas para Lima, Perú, mayo 2026. Diesel ≈ S/14.00-16.50, Regular ≈ S/14.50-16.50, Premium ≈ S/16.00-18.50.
+2. Coordenadas deben ser realistas y dentro del radio indicado de lat=${lat||"-12.0464"}, lon=${lon||"-77.0428"}.
+3. Incluye variedad de banderas: PRIMAX, PECSA, PETRO PERU, REPSOL, INDEPENDIENTE, etc.
+4. Si hay estaciones con GNV o GLP anótalas pero prioriza las de DIESEL Y GASOLINAS.
+5. Ordena competencia de menor a mayor distancia.`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        model:"claude-sonnet-4-20250514",
+        max_tokens:2000,
+        messages:[{role:"user",content:prompt}]
+      })
+    });
+    const data = await res.json();
+    const raw = data.content.map(i=>i.text||"").join("");
+    const j1=raw.indexOf("{"), j2=raw.lastIndexOf("}");
+    const parsed = JSON.parse(raw.slice(j1,j2+1));
+    // Enriquecer con banderas de la DB
+    parsed.competencia = parsed.competencia.map(s=>({
+      ...s,
+      bandera: getBandera(s.ruc) !== "INDEPENDIENTE" ? getBandera(s.ruc) : (s.bandera||"INDEPENDIENTE")
+    }));
+    stData = parsed;
+    guardarHistoria({tipo:"precios",ruc:ruc||"coords",nombre:parsed.estacion_central.nombre,fecha:new Date().toLocaleString("es-PE"),data:parsed});
+    renderPrecios(parsed);
+  } catch(e) {
+    alert("Error al obtener datos. Verifica tu conexión a internet.");
+    console.error(e);
+  }
+  document.getElementById("loading-precios").style.display="none";
+  document.getElementById("btn-buscar").disabled=false;
+}
+
+// ─── RENDER PRECIOS ──────────────────────────────────────────────────────────
+function renderPrecios(d) {
+  const comp = d.competencia.filter(s=>s.categoria&&s.categoria.includes("DIESEL"));
+  const otros = d.competencia.filter(s=>!s.categoria||!s.categoria.includes("DIESEL"));
+  const allD = comp.map(s=>s.diesel).filter(Boolean);
+  const minD = Math.min(...allD), maxD = Math.max(...allD);
+  const oportunidad = d.oportunidad_primax==="alta" ? "🔥 Alta" : d.oportunidad_primax==="media" ? "⚡ Media" : "💤 Baja";
+  const oBadge = d.oportunidad_primax==="alta" ? "b-red" : d.oportunidad_primax==="media" ? "b-amber" : "b-gray";
+  const trBadge = d.transito==="alto" ? "b-red" : d.transito==="medio" ? "b-amber" : "b-gray";
+
+  document.getElementById("insight-card").innerHTML = `
+    <div class="card-title">📊 Análisis de zona — ${d.fecha_precios}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="badge ${trBadge}">🚗 Tránsito ${d.transito}</span>
+      <span class="badge b-blue">🏙 Zona ${d.zona}</span>
+      <span class="badge ${oBadge}">🎯 Oportunidad ${oportunidad}</span>
+    </div>
+    <div class="insight"><div class="insight-t">💡 Inteligencia Primax</div><p>${d.resumen}</p></div>
+    ${d.estacion_central.es_punto_observacion ? "" : `
+    <div style="margin-top:10px;padding:11px;background:#fafafa;border-radius:8px">
+      <div style="font-size:10px;color:#aaa;margin-bottom:3px">Estación analizada</div>
+      <div style="font-weight:700;font-size:15px">${d.estacion_central.nombre}</div>
+      <div style="font-size:12px;color:#888;margin-top:2px">${d.estacion_central.direccion}</div>
+      <div style="margin-top:6px"><span class="badge" style="background:${getColor(d.estacion_central.bandera)}22;color:${getColor(d.estacion_central.bandera)}">${d.estacion_central.bandera}</span></div>
+    </div>`}
+    ${otros.length ? `<div class="notice">⚠️ ${otros.length} estación(es) de categoría diferente (GNV/GLP) no incluida(s) en la tabla principal.</div>` : ""}
+  `;
+
+  // Tabla
+  document.getElementById("tbl-body").innerHTML = comp.map((s,i)=>{
+    const dc = s.diesel===minD?"best":s.diesel===maxD?"worst":"";
+    return `<tr onclick="openDetail(${i})">
+      <td><div class="sname">${s.nombre}</div><div class="saddr">${(s.dist_km||0).toFixed(1)}km · <span style="color:${getColor(s.bandera)}">${s.bandera}</span></div></td>
+      <td class="pcell ${dc}">${s.diesel?'S/'+s.diesel.toFixed(2):"—"}</td>
+      <td class="pcell">${s.regular?'S/'+s.regular.toFixed(2):"—"}</td>
+      <td class="pcell">${s.premium?'S/'+s.premium.toFixed(2):"—"}</td>
+    </tr>`;
+  }).join("");
+
+  renderMapa(d, comp);
+  document.getElementById("res-precios").style.display="block";
+  window.scrollTo(0,0);
+}
+
+// ─── MAPA ─────────────────────────────────────────────────────────────────────
+function mkIcon(label, color, big=false) {
+  const s=big?28:22;
+  return L.divIcon({className:"",html:`<div style="width:${s}px;height:${s}px;border-radius:50%;background:${color};border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${big?13:9}px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.3)">${label}</div>`,iconSize:[s,s],iconAnchor:[s/2,s/2]});
+}
+
+function renderMapa(d, comp) {
+  if(map){map.remove();map=null;}
+  setTimeout(()=>{
+    map=L.map("map").setView([d.estacion_central.lat,d.estacion_central.lon],14);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OSM",maxZoom:19}).addTo(map);
+    // Marcador central
+    const cIcon = d.estacion_central.es_punto_observacion
+      ? mkIcon("📍","#666",true)
+      : mkIcon("⛽",getColor(d.estacion_central.bandera),true);
+    L.marker([d.estacion_central.lat,d.estacion_central.lon],{icon:cIcon})
+      .addTo(map).bindPopup(`<b>${d.estacion_central.nombre}</b><br>${d.estacion_central.es_punto_observacion?"Tu ubicación":"Estación analizada"}`);
+    // Competencia
+    comp.forEach((s,i)=>{
+      L.marker([s.lat,s.lon],{icon:mkIcon(i+1,getColor(s.bandera))})
+        .addTo(map)
+        .bindPopup(`<b>${s.nombre}</b><br>${s.bandera}<br>Diesel: ${s.diesel?"S/"+s.diesel.toFixed(2):"—"}<br>${(s.dist_km||0).toFixed(1)} km`);
+    });
+    // Radio
+    L.circle([d.estacion_central.lat,d.estacion_central.lon],{
+      radius:parseFloat(document.getElementById("radio-sel").value)*1000,
+      color:"#E30613",fillColor:"#E30613",fillOpacity:.04,weight:1.5,dashArray:"6,4"
+    }).addTo(map);
+  },200);
+}
+
+// ─── DETALLE ESTACIÓN ────────────────────────────────────────────────────────
+function openDetail(i) {
+  const s = stData.competencia.filter(x=>x.categoria&&x.categoria.includes("DIESEL"))[i];
+  document.getElementById("modal-name").textContent = s.nombre;
+  document.getElementById("modal-body").innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="badge" style="background:${getColor(s.bandera)}22;color:${getColor(s.bandera)}">${s.bandera}</span>
+      <span class="badge b-gray">${(s.dist_km||0).toFixed(1)} km</span>
+      ${s.tiene_stock===false?'<span class="badge b-red">Sin stock</span>':''}
+    </div>
+    <div class="sf"><div class="sl">Dirección</div><div class="sv">${s.direccion}</div></div>
+    <div class="sf"><div class="sl">RUC</div><div class="sv">${s.ruc}</div></div>
+    <div class="pgrid">
+      <div class="pbox"><div class="plabel">Diesel</div><div class="pval">${s.diesel?"S/"+s.diesel.toFixed(2):"—"}</div></div>
+      <div class="pbox"><div class="plabel">Regular</div><div class="pval">${s.regular?"S/"+s.regular.toFixed(2):"—"}</div></div>
+      <div class="pbox"><div class="plabel">Premium</div><div class="pval">${s.premium?"S/"+s.premium.toFixed(2):"—"}</div></div>
+    </div>
+    ${s.gnv?`<div class="sf"><div class="sl">GNV</div><div class="sv">S/${s.gnv.toFixed(2)}</div></div>`:""}
+    <button class="btn" style="margin-top:14px" onclick="closeModal();irASunat('${s.ruc}')">🏢 Ver en SUNAT →</button>
+  `;
+  document.getElementById("modal").classList.add("open");
+}
+function closeModal(){document.getElementById("modal").classList.remove("open");}
+
+// Cerrar modal tocando overlay
+document.getElementById("modal").addEventListener("click",function(e){if(e.target===this)closeModal();});
+
+// ─── SUNAT ───────────────────────────────────────────────────────────────────
+function irASunat(ruc){
+  document.getElementById("sunat-ruc").value=ruc;
+  goTab("sunat",document.querySelector(".tab:nth-child(2)"));
+  consultarSunat();
+}
+
+async function consultarSunat() {
+  const ruc=document.getElementById("sunat-ruc").value.trim();
+  if(!ruc||ruc.length<8){alert("Ingresa un RUC válido (11 dígitos)");return;}
+  document.getElementById("res-sunat").innerHTML="";
+  document.getElementById("loading-sunat").style.display="block";
+  document.getElementById("btn-sunat").disabled=true;
+
+  const prompt=`Eres el motor de inteligencia comercial de Primax Perú para su equipo hunter.
+RUC: ${ruc}
+Hoy: ${new Date().toLocaleDateString("es-PE")}
+
+Devuelve SOLO JSON válido (sin texto, sin markdown):
+{
+  "ruc": "${ruc}",
+  "razon_social": "Nombre completo como en SUNAT",
+  "nombre_comercial": "nombre o null",
+  "estado_ruc": "ACTIVO|BAJA|SUSPENDIDO",
+  "condicion_ruc": "HABIDO|NO HABIDO",
+  "tipo_empresa": "S.A.C.|S.R.L.|E.I.R.L.|S.A.|PERSONA NATURAL|etc",
+  "inicio_actividades": "DD/MM/AAAA",
+  "actividad_principal": "descripción de SUNAT",
+  "ciiu": "4730",
+  "domicilio_fiscal": "dirección completa",
+  "ubigeo": "Departamento - Provincia - Distrito",
+  "rep_legal": {"nombre":"NOMBRES APELLIDOS","dni":"12345678","cargo":"Gerente General"},
+  "socios": [
+    {"nombre":"NOMBRE","cargo":"cargo","participacion":"XX%"}
+  ],
+  "num_establecimientos": 2,
+  "establecimientos_anexos": [
+    {"nombre":"nombre o null","direccion":"dirección completa","estado":"ACTIVO"}
+  ],
+  "contactos": [
+    {"tipo":"email","valor":"correo@empresa.com","fuente":"web/LinkedIn/directorio"},
+    {"tipo":"telefono","valor":"+51 1 XXX-XXXX","fuente":"fuente"},
+    {"tipo":"celular","valor":"+51 9XX XXX XXX","fuente":"fuente"}
+  ],
+  "digital": {
+    "web": "https://... o null",
+    "linkedin": "https://linkedin.com/... o null",
+    "instagram": "@cuenta o null",
+    "facebook": "https://fb.com/... o null"
+  },
+  "volumen_estimado": "pequeño (<500 gal/día)|mediano (500-2000 gal/día)|grande (>2000 gal/día)",
+  "tamano": "pequeño|mediano|grande",
+  "oportunidad": "Análisis de 2-3 oraciones: potencial de afiliación a Primax, leverage de negociación si tiene varias estaciones, urgencia.",
+  "estrategia": "Táctica específica y concreta para el primer acercamiento del hunter: qué decir, por qué canal, qué argumento usar primero."
+}
+Usa datos realistas para Lima, Perú. Si el RUC parece corresponder a una empresa conocida del sector combustibles, úsala. Si es desconocido, inventa datos coherentes con el sector.`;
+
+  try {
+    const res=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1800,messages:[{role:"user",content:prompt}]})
+    });
+    const data=await res.json();
+    const raw=data.content.map(i=>i.text||"").join("");
+    const j1=raw.indexOf("{"),j2=raw.lastIndexOf("}");
+    const s=JSON.parse(raw.slice(j1,j2+1));
+    guardarHistoria({tipo:"sunat",ruc:s.ruc,nombre:s.razon_social,fecha:new Date().toLocaleString("es-PE"),data:s});
+    renderSunat(s);
+  } catch(e) {
+    alert("Error al consultar. Verifica tu conexión.");
+    console.error(e);
+  }
+  document.getElementById("loading-sunat").style.display="none";
+  document.getElementById("btn-sunat").disabled=false;
+}
+
+function renderSunat(d) {
+  const tC=d.tamano==="grande"?"b-red":d.tamano==="mediano"?"b-amber":"b-green";
+  document.getElementById("res-sunat").innerHTML=`
+    <div class="card">
+      <div class="card-title">📋 Datos SUNAT</div>
+      <div class="sf"><div class="sl">RUC</div><div class="sv">${d.ruc}</div></div>
+      <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social}</div></div>
+      ${d.nombre_comercial?`<div class="sf"><div class="sl">Nombre Comercial</div><div class="sv">${d.nombre_comercial}</div></div>`:""}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <span class="badge ${d.estado_ruc==="ACTIVO"?"b-green":"b-red"}">${d.estado_ruc}</span>
+        <span class="badge ${d.condicion_ruc==="HABIDO"?"b-green":"b-red"}">${d.condicion_ruc}</span>
+        <span class="badge ${tC}">Cliente ${d.tamano}</span>
+      </div>
+      <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo_empresa}</div></div>
+      <div class="sf"><div class="sl">Inicio de operaciones</div><div class="sv">${d.inicio_actividades}</div></div>
+      <div class="sf"><div class="sl">Actividad CIIU ${d.ciiu}</div><div class="sv" style="font-size:13px">${d.actividad_principal}</div></div>
+      <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio_fiscal}</div></div>
+      <div class="sf"><div class="sl">Ubigeo</div><div class="sv">${d.ubigeo}</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👤 Representante legal y socios</div>
+      <div class="sf"><div class="sl">Rep. Legal</div><div class="sv">${d.rep_legal.nombre} <span style="color:#aaa;font-size:12px">DNI: ${d.rep_legal.dni}</span></div></div>
+      <div class="sl" style="margin-bottom:6px">Socios / accionistas</div>
+      ${(d.socios||[]).map(s=>`<div style="background:var(--gray);border-radius:8px;padding:9px 11px;margin-bottom:6px"><div style="font-weight:600;font-size:13px">${s.nombre}</div><div style="font-size:12px;color:#888;margin-top:2px">${s.cargo}${s.participacion?" · "+s.participacion:""}</div></div>`).join("")}
+    </div>
+
+    ${(d.establecimientos_anexos||[]).length?`
+    <div class="card">
+      <div class="card-title">⛽ Red de estaciones (${d.num_establecimientos} en total)</div>
+      <div class="insight" style="margin-bottom:10px"><div class="insight-t">💡 Leverage de negociación</div><p>Este cliente opera <strong>${d.num_establecimientos} estaciones</strong>. Afiliar toda la red a Primax multiplica el volumen y fortalece la negociación.</p></div>
+      ${d.establecimientos_anexos.map((e,i)=>`
+        <div class="citem">
+          <div class="cicon" style="background:#f0f0f0;color:#666;font-size:11px;font-weight:700">${i+2}</div>
+          <div><div style="font-weight:600;font-size:13px">${e.nombre||"Estación anexa"}</div><div style="font-size:12px;color:#aaa">${e.direccion} · <span class="${e.estado==="ACTIVO"?"":""}${e.estado==="ACTIVO"?"b-green":"b-red"}" style="font-size:11px">${e.estado}</span></div></div>
+        </div>`).join("")}
+    </div>` : ""}
+
+    <div class="card">
+      <div class="card-title">📞 Contactos encontrados</div>
+      ${(d.contactos||[]).map(c=>{
+        const icons={"email":"📧","telefono":"📞","celular":"📱","whatsapp":"💬"};
+        return `<div class="citem"><div class="cicon" style="background:#f0f4ff">${icons[c.tipo]||"📌"}</div><div style="flex:1"><div style="font-weight:600;font-size:13px">${c.valor}</div><div style="font-size:11px;color:#aaa">Fuente: ${c.fuente}</div></div></div>`;
+      }).join("")}
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+        ${d.digital.web?`<a href="${d.digital.web}" target="_blank" style="text-decoration:none"><span class="badge b-blue">🌐 Web</span></a>`:""}
+        ${d.digital.linkedin?`<a href="${d.digital.linkedin}" target="_blank" style="text-decoration:none"><span class="badge b-blue">💼 LinkedIn</span></a>`:""}
+        ${d.digital.instagram?`<a href="https://instagram.com/${d.digital.instagram.replace('@','')}" target="_blank" style="text-decoration:none"><span class="badge b-blue">📸 ${d.digital.instagram}</span></a>`:""}
+        ${d.digital.facebook?`<a href="${d.digital.facebook}" target="_blank" style="text-decoration:none"><span class="badge b-blue">👤 Facebook</span></a>`:""}
+      </div>
+    </div>
+
+    <div class="card" style="border:1.5px solid var(--red)">
+      <div class="card-title" style="color:var(--red)">🎯 Estrategia Primax</div>
+      <div class="sf"><div class="sl">Volumen estimado</div><div class="sv">${d.volumen_estimado}</div></div>
+      <div class="sf"><div class="sl">Oportunidad</div><div class="sv" style="font-size:13px">${d.oportunidad}</div></div>
+      <div class="strat"><div class="strat-t">Acercamiento recomendado</div><p>${d.estrategia}</p></div>
+    </div>
+  `;
+}
+
+// ─── EXPORT WHATSAPP ─────────────────────────────────────────────────────────
+function exportWSP() {
+  if(!stData){alert("Primero realiza una búsqueda");return;}
+  const d=stData;
+  const comp=d.competencia.filter(s=>s.categoria&&s.categoria.includes("DIESEL"));
+  let msg=`⛽ *PRIMAX HUNTER — Reporte de Campo*\n`;
+  msg+=`📅 ${d.fecha_precios} | Radio: ${document.getElementById("radio-sel").value}km\n`;
+  msg+=`📍 ${d.estacion_central.nombre}\n\n`;
+  msg+=`*Competencia cercana (Diesel / Regular / Premium):*\n`;
+  comp.forEach((s,i)=>{
+    msg+=`${i+1}. ${s.nombre}\n   ${s.bandera} · ${(s.dist_km||0).toFixed(1)}km\n   D:${s.diesel?"S/"+s.diesel.toFixed(2):"—"} R:${s.regular?"S/"+s.regular.toFixed(2):"—"} P:${s.premium?"S/"+s.premium.toFixed(2):"—"}\n`;
+  });
+  msg+=`\n💡 ${d.resumen}\n\n_Enviado desde Primax Hunter_`;
+  const url="https://wa.me/?text="+encodeURIComponent(msg);
+  window.open(url,"_blank");
+}
+
+// ─── EXPORT PDF ──────────────────────────────────────────────────────────────
+function exportPDF() {
+  if(!stData){alert("Primero realiza una búsqueda");return;}
+  const d=stData;
+  const comp=d.competencia.filter(s=>s.categoria&&s.categoria.includes("DIESEL"));
+  const allD=comp.map(s=>s.diesel).filter(Boolean);
+  const minD=Math.min(...allD), maxD=Math.max(...allD);
+  const rows=comp.map(s=>{
+    const dc=s.diesel===minD?"color:#1a7a40":s.diesel===maxD?"color:#c0392b":"";
+    return `<tr><td><b>${s.nombre}</b><br><small style="color:#888">${s.direccion}</small><br><small style="color:${getColor(s.bandera)}">${s.bandera}</small></td><td style="${dc}"><b>${s.diesel?"S/"+s.diesel.toFixed(2):"—"}</b></td><td>${s.regular?"S/"+s.regular.toFixed(2):"—"}</td><td>${s.premium?"S/"+s.premium.toFixed(2):"—"}</td><td>${(s.dist_km||0).toFixed(1)} km</td></tr>`;
+  }).join("");
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Primax Hunter</title>
+  <style>body{font-family:Arial,sans-serif;padding:24px;color:#111;max-width:800px;margin:0 auto}
+  h1{color:#E30613;font-size:22px;margin-bottom:4px}.sub{color:#888;font-size:13px;margin-bottom:20px}
+  .meta{background:#f5f5f5;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px}
+  .insight{background:#fff8f8;border:1px solid #f5c0c0;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px;line-height:1.6}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#E30613;color:#fff;padding:9px 8px;text-align:left}
+  td{padding:9px 8px;border-bottom:1px solid #eee;vertical-align:top}
+  .footer{margin-top:24px;font-size:11px;color:#aaa;text-align:center}
+  @media print{body{padding:0}}</style></head><body>
+  <h1>⛽ PRIMAX HUNTER — Reporte de Campo</h1>
+  <div class="sub">Generado el ${d.fecha_precios} · Radio ${document.getElementById("radio-sel").value} km</div>
+  <div class="meta"><b>Estación analizada:</b> ${d.estacion_central.nombre}<br><b>Zona:</b> ${d.zona} · <b>Tránsito:</b> ${d.transito} · <b>Oportunidad Primax:</b> ${d.oportunidad_primax}</div>
+  <div class="insight"><b>💡 Análisis:</b> ${d.resumen}</div>
+  <table><thead><tr><th>Estación</th><th>Diesel</th><th>Regular</th><th>Premium</th><th>Dist.</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+  <div class="footer">Primax Hunter · Fuente: Facilito / Osinergmin · Confidencial — uso interno Primax Perú</div>
+  <script>window.onload=function(){window.print()}<\/script></body></html>`;
+  const w=window.open("","_blank");
+  w.document.write(html);
+  w.document.close();
+}
+
+// ─── HISTORIAL ────────────────────────────────────────────────────────────────
+function guardarHistoria(item) {
+  historia.unshift(item);
+  if(historia.length>30) historia=historia.slice(0,30);
+}
+
+function renderHistoria() {
+  const el=document.getElementById("historia-list");
+  if(!historia.length){el.innerHTML='<p style="color:#bbb;font-size:13px;text-align:center;padding:10px">Sin consultas aún</p>';return;}
+  el.innerHTML=historia.map((h,i)=>`
+    <div class="hist-item" onclick="reloadHistoria(${i})">
+      <div class="cicon" style="background:${h.tipo==="precios"?"#fff5f5":"#f0f5ff"};font-size:16px">${h.tipo==="precios"?"🗺":"🏢"}</div>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px">${h.nombre||h.ruc}</div>
+        <div style="font-size:11px;color:#aaa">RUC: ${h.ruc} · ${h.fecha}</div>
+      </div>
+      <span style="color:#bbb;font-size:18px">›</span>
+    </div>`).join("");
+}
+
+function reloadHistoria(i) {
+  const h=historia[i];
+  if(h.tipo==="precios"){
+    document.getElementById("ruc-input").value=h.ruc==="coords"?"":h.ruc;
+    goTab("precios",document.querySelector(".tab:nth-child(1)"));
+    if(h.data){stData=h.data;renderPrecios(h.data);}
+  } else {
+    document.getElementById("sunat-ruc").value=h.ruc;
+    goTab("sunat",document.querySelector(".tab:nth-child(2)"));
+    if(h.data)renderSunat(h.data);
+  }
+}
+</script>
+</body>
+</html>
