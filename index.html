@@ -541,10 +541,26 @@ async function buscar(){
 
   const url=`https://www.facilito.gob.pe/facilito/actions/MapaAction.do?method=getPoints&tipo=LIQ&producto=40&latitudeHI=${latHI}&longitudeHI=${lonHI}&latitudeLO=${latLO}&longitudeLO=${lonLO}`;
 
+  const proxies=[
+    "https://corsproxy.io/?"+encodeURIComponent(url),
+    "https://api.allorigins.win/raw?url="+encodeURIComponent(url),
+    "https://proxy.cors.sh/"+url,
+  ];
+
   try{
-    const res=await fetch("https://corsproxy.io/?"+encodeURIComponent(url));
-    if(!res.ok)throw new Error("Sin respuesta de Facilito");
-    const data=await res.json();
+    let data=null;
+    let lastErr="";
+    for(const proxyUrl of proxies){
+      try{
+        const res=await fetch(proxyUrl,{headers:{"x-requested-with":"XMLHttpRequest"}});
+        if(!res.ok) continue;
+        const text=await res.text();
+        if(!text||text.trim()[0]!=="[") continue;
+        data=JSON.parse(text);
+        if(data&&data.length>=0) break;
+      }catch(e){lastErr=e.message;continue;}
+    }
+    if(!data) throw new Error("No se pudo conectar con Facilito: "+lastErr);
     if(!data||!data.length){
       alert("No se encontraron estaciones. Prueba con un radio mayor.");
       document.getElementById("loading-precios").style.display="none";
