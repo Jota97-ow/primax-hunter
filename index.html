@@ -441,19 +441,51 @@ document.addEventListener("click",e=>{
 // ═══════════════════════════════════════════
 // BUSQUEDA POR RUC
 // ═══════════════════════════════════════════
-async function buscarPorRuc(){
-  const ruc=document.getElementById("ruc-buscar").value.trim();
-  if(!ruc||ruc.length<8){alert("Ingresa un RUC válido");return;}
-
-  // Find in our banderas DB — get codigo from RUC
-  // We need to search Facilito. Since we don't have RUC->coords directly,
-  // we'll search our banderas DB by RUC to get the codigo, then inform user
-  // Actually BANDERAS is codigo->bandera, not RUC->coords
-  // Best approach: show message to also enter coords, or use name search
-  // BUT we can also just put the RUC in SUNAT field as convenience
-  document.getElementById("sunat-ruc").value=ruc;
-  goTab("sunat",document.querySelector(".tab:nth-child(2)"));
-  alert("RUC copiado al módulo SUNAT. Para ver estaciones en el mapa, usa coordenadas GPS.");
+function buscarPorRuc(){
+  const ruc = document.getElementById("ruc-buscar").value.trim();
+  if(!ruc || ruc.length < 8){alert("Ingresa un RUC válido (mínimo 8 dígitos)");return;}
+  
+  const matches = STATIONS.filter(s => s[1].includes(ruc)).slice(0, 20);
+  
+  if(!matches.length){
+    alert(`No se encontró ninguna estación con RUC "${ruc}" en la base de datos.`);
+    return;
+  }
+  
+  const esGrupo = matches.length >= 2;
+  const box = document.getElementById("nombre-results");
+  document.getElementById("nombre-input").value = "";
+  
+  let header = "";
+  if(esGrupo){
+    header = `<div style="padding:10px 13px;background:linear-gradient(135deg,#fff7ed,#fff);border-bottom:1px solid #fed7aa;display:flex;align-items:center;gap:8px">
+      <div style="background:#F47920;color:#fff;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:900">🏢 GRUPO · ${matches.length} ESTACIONES</div>
+      <div style="font-size:11px;color:#92400e;font-weight:700">Alto potencial de negociación</div>
+    </div>`;
+  } else {
+    header = `<div style="padding:8px 13px;font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">RUC ${ruc} — 1 estación</div>`;
+  }
+  
+  if(matches.length === 1){
+    const s = matches[0];
+    document.getElementById("lat-input").value = s[7].toFixed(6);
+    document.getElementById("lon-input").value = s[8].toFixed(6);
+    buscar();
+    return;
+  }
+  
+  box.innerHTML = header + matches.map((s,i) => `
+    <div class="search-item" onclick="buscarDesdeNombre(${s[7]},${s[8]},'${s[2].replace(/'/g,"\'")}')">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div style="width:20px;height:20px;border-radius:50%;background:${esGrupo?"#F47920":"#6b7280"};color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+        <div>
+          ${s[2]}
+          <small>${s[6]} · ${s[3]}, ${s[4]}</small>
+        </div>
+      </div>
+    </div>`).join("");
+  box.style.display = "block";
+  document.getElementById("nombre-input").scrollIntoView({behavior:"smooth"});
 }
 
 // ═══════════════════════════════════════════
@@ -624,6 +656,13 @@ function openDetail(i){
       <div>
         <span class="badge" style="background:${bColor}18;color:${bColor};border:1px solid ${bColor}30">${s.bandera}</span>
         <div style="font-size:11px;color:#9ca3af;margin-top:3px;font-weight:700">${s.dist_km.toFixed(1)} km · Cód. ${s.codigo}</div>
+      ${(()=>{
+        const siblings = stData ? stData.estaciones.filter(e=>e.codigo!==s.codigo && STATIONS.find(x=>x[0]===e.codigo && x[1]===STATIONS.find(y=>y[0]===s.codigo)?.[1])) : [];
+        const rucMatch = STATIONS.find(x=>x[0]===s.codigo);
+        const ruc = rucMatch ? rucMatch[1] : null;
+        const grupoTotal = ruc ? STATIONS.filter(x=>x[1]===ruc).length : 1;
+        return grupoTotal>=2 ? `<div style="margin-top:6px;background:linear-gradient(135deg,#fff7ed,#fff);border:1px solid #fed7aa;border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">🏢</span><div><div style="font-size:11px;font-weight:900;color:#F47920">GRUPO · ${grupoTotal} ESTACIONES</div><div style="font-size:10px;color:#92400e;font-weight:700">Misma razón social — alto leverage</div></div></div>` : "";
+      })()}
       </div>
       <span class="real-badge" style="margin-left:auto">✅ Real hoy</span>
     </div>
@@ -822,9 +861,8 @@ function reloadHistoria(i){
   const logo=bandera&&!big?getLogo(bandera):null;
   if(logo){
     return L.divIcon({className:"",html:`<div style="position:relative;width:${s}px;height:${s}px">
-      <div style="width:${s}px;height:${s}px;border-radius:8px;background:#fff;border:2px solid ${color};overflow:hidden;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.3);padding:2px">
-        <img src="${logo}" style="width:100%;height:100%;object-fit:contain"/></div>
-      <div style="position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:${color};color:#fff;font-size:8px;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff">${label}</div>
+      <img src="${logo}" style="width:${s}px;height:${s}px;object-fit:contain;filter:drop-shadow(0 2px 6px rgba(0,0,0,.35))"/>
+      <div style="position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;background:${color};color:#fff;font-size:8px;font-weight:900;display:flex;align-items:center;justify-content:center;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)">${label}</div>
     </div>`,iconSize:[s,s],iconAnchor:[s/2,s/2]});
   }
   return L.divIcon({className:"",html:`<div style="width:${s}px;height:${s}px;border-radius:50%;background:${color};border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font-size:${big?14:10}px;font-weight:900;box-shadow:0 2px 8px rgba(0,0,0,.35)">${label}</div>`,iconSize:[s,s],iconAnchor:[s/2,s/2]});
@@ -1451,6 +1489,13 @@ function openDetail(i){
       <div>
         <span class="badge" style="background:${bColor}18;color:${bColor};border:1px solid ${bColor}30">${s.bandera}</span>
         <div style="font-size:11px;color:#9ca3af;margin-top:3px;font-weight:700">${s.dist_km.toFixed(1)} km · Cód. ${s.codigo}</div>
+      ${(()=>{
+        const siblings = stData ? stData.estaciones.filter(e=>e.codigo!==s.codigo && STATIONS.find(x=>x[0]===e.codigo && x[1]===STATIONS.find(y=>y[0]===s.codigo)?.[1])) : [];
+        const rucMatch = STATIONS.find(x=>x[0]===s.codigo);
+        const ruc = rucMatch ? rucMatch[1] : null;
+        const grupoTotal = ruc ? STATIONS.filter(x=>x[1]===ruc).length : 1;
+        return grupoTotal>=2 ? `<div style="margin-top:6px;background:linear-gradient(135deg,#fff7ed,#fff);border:1px solid #fed7aa;border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">🏢</span><div><div style="font-size:11px;font-weight:900;color:#F47920">GRUPO · ${grupoTotal} ESTACIONES</div><div style="font-size:10px;color:#92400e;font-weight:700">Misma razón social — alto leverage</div></div></div>` : "";
+      })()}
       </div>
       <span class="real-badge" style="margin-left:auto">✅ Real hoy</span>
     </div>
