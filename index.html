@@ -175,15 +175,15 @@ input:focus,select:focus{border-color:var(--orange)}
   <div class="card">
     <div class="card-title">🔍 Buscar estación</div>
 
-    <!-- BUSQUEDA POR NOMBRE -->
+    <!-- BUSQUEDA POR NOMBRE O RUC -->
     <div style="position:relative;margin-bottom:10px">
-      <input type="text" id="nombre-input" placeholder="Buscar por nombre (ej: COESTI, REPSOL...)" oninput="buscarNombre(this.value)" autocomplete="off"/>
+      <input type="text" id="nombre-input" placeholder="Nombre de estación (ej: COESTI, SANTA FE...)" oninput="buscarNombre(this.value)" autocomplete="off"/>
       <div id="nombre-results" class="search-results"></div>
     </div>
-
-    <div class="sep">o por RUC</div>
-    <input type="text" id="ruc-buscar" placeholder="RUC (11 dígitos)" style="margin-bottom:10px" onkeyup="if(event.key==='Enter')buscarPorRuc()"/>
-    <button class="btn btn-blue" style="margin-bottom:10px" onclick="buscarPorRuc()">🔎 Buscar por RUC / Razón Social</button>
+    <div style="position:relative;margin-bottom:10px">
+      <input type="text" id="ruc-buscar" placeholder="RUC (ej: 20509964921)" oninput="buscarPorRucAuto(this.value)" autocomplete="off"/>
+      <div id="ruc-results" class="search-results"></div>
+    </div>
 
     <div class="sep">o por coordenadas GPS</div>
     <div class="row">
@@ -399,21 +399,26 @@ function buscarNombre(val){
   if(!val || val.length < 2){box.style.display="none";return;}
   
   const q = val.toLowerCase().trim();
-  
-  // Buscar en índice completo de estaciones (4,486 del Excel)
-  const matches = STATIONS.filter(s => s[2].toLowerCase().includes(q)).slice(0, 10);
+  const matches = STATIONS.filter(s => s[2].toLowerCase().includes(q)).slice(0, 15);
   
   if(!matches.length){
     box.innerHTML=`<div class="search-item" style="color:#9ca3af">Sin resultados para "${val}"</div>`;
-    box.style.display="block";
-    return;
+    box.style.display="block"; return;
   }
-  
+
+  // Para cada resultado, verificar si su RUC tiene más de 1 estación (grupo)
   box.innerHTML = matches.map(s => {
-    // s = [codigo, ruc, nombre, direccion, distrito, bandera, lat, lon]
+    const ruc = s[1];
+    const totalEstaciones = ruc ? STATIONS.filter(x => x[1] === ruc).length : 1;
+    const esGrupo = totalEstaciones >= 2;
     return `<div class="search-item" onclick="buscarDesdeNombre(${s[6]},${s[7]},'${s[2].replace(/'/g,"\'")}')">
-      ${s[2]}
-      <small>${s[5]} · ${s[3]}, ${s[4]}</small>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <div>
+          ${s[2]}
+          <small>${s[5]} · ${s[3]}, ${s[4]}</small>
+        </div>
+        ${esGrupo ? `<div style="flex-shrink:0;background:#F47920;color:#fff;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:900;white-space:nowrap">🏢 ${totalEstaciones} loc.</div>` : ""}
+      </div>
     </div>`;
   }).join("");
   box.style.display = "block";
@@ -438,56 +443,31 @@ function resaltarEstacion(codigo){
 document.addEventListener("click",e=>{
   if(!e.target.closest("#nombre-input")&&!e.target.closest("#nombre-results"))
     document.getElementById("nombre-results").style.display="none";
+  if(!e.target.closest("#ruc-buscar")&&!e.target.closest("#ruc-results"))
+    document.getElementById("ruc-results").style.display="none";
 });
 
 // ═══════════════════════════════════════════
 // BUSQUEDA POR RUC
 // ═══════════════════════════════════════════
-function buscarPorRuc(){
-  const ruc = document.getElementById("ruc-buscar").value.trim();
-  if(!ruc || ruc.length < 8){alert("Ingresa un RUC válido (mínimo 8 dígitos)");return;}
-  
-  const matches = STATIONS.filter(s => s[1].includes(ruc)).slice(0, 20);
-  
+function buscarPorRucAuto(val){
+  const box = document.getElementById("ruc-results");
+  if(!val || val.length < 6){box.style.display="none";return;}
+  const matches = STATIONS.filter(s => s[1].includes(val.trim())).slice(0,20);
   if(!matches.length){
-    alert(`No se encontró ninguna estación con RUC "${ruc}" en la base de datos.`);
-    return;
+    box.innerHTML=`<div class="search-item" style="color:#9ca3af">Sin resultados para "${val}"</div>`;
+    box.style.display="block"; return;
   }
-  
   const esGrupo = matches.length >= 2;
-  const box = document.getElementById("nombre-results");
-  document.getElementById("nombre-input").value = "";
-  
-  let header = "";
-  if(esGrupo){
-    header = `<div style="padding:10px 13px;background:linear-gradient(135deg,#fff7ed,#fff);border-bottom:1px solid #fed7aa;display:flex;align-items:center;gap:8px">
-      <div style="background:#F47920;color:#fff;border-radius:8px;padding:4px 10px;font-size:11px;font-weight:900">🏢 GRUPO · ${matches.length} ESTACIONES</div>
-      <div style="font-size:11px;color:#92400e;font-weight:700">Alto potencial de negociación</div>
-    </div>`;
-  } else {
-    header = `<div style="padding:8px 13px;font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;letter-spacing:.5px">RUC ${ruc} — 1 estación</div>`;
-  }
-  
-  if(matches.length === 1){
-    const s = matches[0];
-    document.getElementById("lat-input").value = s[7].toFixed(6);
-    document.getElementById("lon-input").value = s[8].toFixed(6);
-    buscar();
-    return;
-  }
-  
+  let header = esGrupo ? `<div style="padding:8px 13px;background:linear-gradient(135deg,#fff7ed,#fff);border-bottom:1px solid #fed7aa;display:flex;align-items:center;gap:8px"><div style="background:#F47920;color:#fff;border-radius:8px;padding:3px 10px;font-size:11px;font-weight:900">🏢 GRUPO · ${matches.length} ESTACIONES</div><div style="font-size:11px;color:#92400e;font-weight:700">Alto potencial de negociación</div></div>` : "";
   box.innerHTML = header + matches.map((s,i) => `
-    <div class="search-item" onclick="buscarDesdeNombre(${s[6]},${s[7]},'${s[2].replace(/'/g,"\'")}')">
+    <div class="search-item" onclick="buscarDesdeNombre(${s[6]},${s[7]},'${s[2].replace(/'/g,"\'")}');document.getElementById('ruc-results').style.display='none'">
       <div style="display:flex;align-items:center;gap:6px">
-        <div style="width:20px;height:20px;border-radius:50%;background:${esGrupo?"#F47920":"#6b7280"};color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
-        <div>
-          ${s[2]}
-          <small>${s[6]} · ${s[3]}, ${s[4]}</small>
-        </div>
+        ${esGrupo?`<div style="width:18px;height:18px;border-radius:50%;background:#F47920;color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>`:""}
+        <div>${s[2]}<small>${s[5]} · ${s[3]}, ${s[4]}</small></div>
       </div>
     </div>`).join("");
-  box.style.display = "block";
-  document.getElementById("nombre-input").scrollIntoView({behavior:"smooth"});
+  box.style.display="block";
 }
 
 // ═══════════════════════════════════════════
