@@ -446,6 +446,12 @@ function resaltarEstacion(codigo){
   if(idx>=0)openDetail(idx);
 }
 
+// Obtener RUC desde código Osinergmin
+function getRucFromCodigo(codigo){
+  const station = STATIONS.find(s => s[0] === String(codigo));
+  return station ? station[1] : codigo; // fallback al codigo si no encuentra
+}
+
 // Nueva búsqueda — limpia todo
 function nuevaBusqueda(){
   // Limpiar campos de búsqueda
@@ -579,7 +585,9 @@ function renderPrecios(d){
   const maxD=allD.length?Math.max(...allD):0;
   const bCount={};
   est.forEach(s=>{bCount[s.bandera]=(bCount[s.bandera]||0)+1;});
-  const independientes=(bCount["Sin bandera identificada"]||0)+(bCount["INDEPENDIENTE"]||0);
+  const sinBandera = bCount["Sin bandera identificada"]||0;
+  const independientes = bCount["INDEPENDIENTE"]||0;
+  const noAfiliadas = sinBandera + independientes;
   const primax=bCount["PRIMAX"]||0;
 
   document.getElementById("insight-card").innerHTML=`
@@ -588,7 +596,8 @@ function renderPrecios(d){
       <span class="badge b-orange">📍 Radio ${d.radio} km</span>
       <span class="badge b-gray">⛽ ${est.length} estaciones</span>
       ${primax>0?`<span class="badge b-orange">🔴 ${primax} Primax</span>`:""}
-      ${independientes>0?`<span class="badge b-amber">🟡 ${independientes} sin bandera</span>`:""}
+      ${sinBandera>0?`<span class="badge b-amber">🟡 ${sinBandera} sin identificar</span>`:""}
+      ${independientes>0?`<span class="badge b-gray">⚪ ${independientes} independientes</span>`:""}
     </div>
     ${allD.length?`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
@@ -601,7 +610,7 @@ function renderPrecios(d){
         <div style="font-size:22px;font-weight:900;color:var(--red)">S/${maxD.toFixed(2)}</div>
       </div>
     </div>`:""}
-    ${independientes>1?`<div class="insight"><div class="insight-t">💡 Oportunidad Primax</div><p><b>${independientes} estaciones sin bandera identificada</b> en el radio. ${primax===0?"Sin presencia Primax — territorio libre para afiliar.":"Primax presente. Hay más espacio para crecer."}</p></div>`:""}
+    ${noAfiliadas>1?`<div class="insight"><div class="insight-t">💡 Oportunidad Primax</div><p><b>${noAfiliadas} estaciones sin afiliación</b> en el radio (${independientes} independientes + ${sinBandera} sin identificar). ${primax===0?"Sin presencia Primax — territorio libre.":"Primax presente, hay más espacio para crecer."}</p></div>`:""}
   `;
 
   // Tabla con numeración
@@ -704,7 +713,7 @@ function openDetail(i){
       <div class="sl" style="margin-bottom:6px">Todos los productos</div>
       ${s.productos_raw.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border);font-size:13px;font-weight:700"><span>${p.producto}</span><span>S/${p.precioVenta.toFixed(2)}</span></div>`).join("")}
     </div>`:""}
-    <button class="btn" style="margin-top:16px" onclick="closeModal();irASunat('${s.codigo}')">🏢 Consultar en SUNAT →</button>
+    <button class="btn" style="margin-top:16px" onclick="closeModal();irASunat(getRucFromCodigo('${s.codigo}'))">🏢 Consultar en SUNAT →</button>
   `;
   document.getElementById("modal").classList.add("open");
 }
