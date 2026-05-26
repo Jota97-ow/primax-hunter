@@ -183,7 +183,7 @@ input:focus,select:focus{border-color:var(--orange)}
 
     <div class="sep">o por RUC</div>
     <input type="text" id="ruc-buscar" placeholder="RUC (11 dígitos)" style="margin-bottom:10px" onkeyup="if(event.key==='Enter')buscarPorRuc()"/>
-    <button class="btn btn-blue" style="margin-bottom:10px" onclick="buscarPorRuc()">🔎 Buscar por RUC</button>
+    <button class="btn btn-blue" style="margin-bottom:10px" onclick="buscarPorRuc()">🔎 Buscar por RUC / Razón Social</button>
 
     <div class="sep">o por coordenadas GPS</div>
     <div class="row">
@@ -410,10 +410,10 @@ function buscarNombre(val){
   }
   
   box.innerHTML = matches.map(s => {
-    // s = [codigo, ruc, nombre, direccion, distrito, provincia, bandera, lat, lon]
-    return `<div class="search-item" onclick="buscarDesdeNombre(${s[7]},${s[8]},'${s[2].replace(/'/g,"\'")}')">
+    // s = [codigo, ruc, nombre, direccion, distrito, bandera, lat, lon]
+    return `<div class="search-item" onclick="buscarDesdeNombre(${s[6]},${s[7]},'${s[2].replace(/'/g,"\'")}')">
       ${s[2]}
-      <small>${s[6]} · ${s[3]}, ${s[4]}</small>
+      <small>${s[5]} · ${s[3]}, ${s[4]}</small>
     </div>`;
   }).join("");
   box.style.display = "block";
@@ -477,7 +477,7 @@ function buscarPorRuc(){
   }
   
   box.innerHTML = header + matches.map((s,i) => `
-    <div class="search-item" onclick="buscarDesdeNombre(${s[7]},${s[8]},'${s[2].replace(/'/g,"\'")}')">
+    <div class="search-item" onclick="buscarDesdeNombre(${s[6]},${s[7]},'${s[2].replace(/'/g,"\'")}')">
       <div style="display:flex;align-items:center;gap:6px">
         <div style="width:20px;height:20px;border-radius:50%;background:${esGrupo?"#F47920":"#6b7280"};color:#fff;font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
         <div>
