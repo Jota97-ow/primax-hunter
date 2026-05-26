@@ -177,11 +177,17 @@ input:focus,select:focus{border-color:var(--orange)}
 
     <!-- BUSQUEDA POR NOMBRE O RUC -->
     <div style="position:relative;margin-bottom:10px">
-      <input type="text" id="nombre-input" placeholder="Nombre de estación (ej: COESTI, SANTA FE...)" oninput="buscarNombre(this.value)" autocomplete="off"/>
+      <div style="position:relative">
+        <input type="text" id="nombre-input" placeholder="Nombre de estación (ej: COESTI, SANTA FE...)" oninput="buscarNombre(this.value);toggleClear('clear-nombre',this.value)" autocomplete="off" style="padding-right:40px"/>
+        <button id="clear-nombre" onclick="limpiarCampo('nombre-input','nombre-results','clear-nombre')" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:18px;line-height:1;padding:4px">✕</button>
+      </div>
       <div id="nombre-results" class="search-results"></div>
     </div>
     <div style="position:relative;margin-bottom:10px">
-      <input type="text" id="ruc-buscar" placeholder="RUC (ej: 20509964921)" oninput="buscarPorRucAuto(this.value)" autocomplete="off"/>
+      <div style="position:relative">
+        <input type="text" id="ruc-buscar" placeholder="RUC (ej: 20509964921)" oninput="buscarPorRucAuto(this.value);toggleClear('clear-ruc',this.value)" autocomplete="off" style="padding-right:40px"/>
+        <button id="clear-ruc" onclick="limpiarCampo('ruc-buscar','ruc-results','clear-ruc')" style="display:none;position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#9ca3af;font-size:18px;line-height:1;padding:4px">✕</button>
+      </div>
       <div id="ruc-results" class="search-results"></div>
     </div>
 
@@ -232,6 +238,7 @@ input:focus,select:focus{border-color:var(--orange)}
       <button class="btn" style="background:#25D366;flex:1;font-size:13px;padding:12px;box-shadow:0 4px 12px rgba(37,211,102,.35)" onclick="exportWSP()">📲 WhatsApp</button>
       <button class="btn" style="background:var(--blue);flex:1;font-size:13px;padding:12px;box-shadow:0 4px 12px rgba(30,58,138,.3)" onclick="exportPDF()">📄 PDF</button>
     </div>
+    <button class="btn" style="background:#fff;color:var(--orange);border:2px solid var(--orange);box-shadow:none;margin-top:8px" onclick="nuevaBusqueda()">🔄 Nueva búsqueda</button>
   </div>
 </div>
 
@@ -437,6 +444,44 @@ function resaltarEstacion(codigo){
   if(!stData)return;
   const idx=stData.estaciones.findIndex(s=>s.codigo===codigo);
   if(idx>=0)openDetail(idx);
+}
+
+// Nueva búsqueda — limpia todo
+function nuevaBusqueda(){
+  // Limpiar campos de búsqueda
+  ["nombre-input","ruc-buscar","lat-input","lon-input"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.value="";
+  });
+  // Ocultar dropdowns y botones limpiar
+  ["nombre-results","ruc-results"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display="none";
+  });
+  ["clear-nombre","clear-ruc"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.style.display="none";
+  });
+  // Ocultar resultados
+  document.getElementById("res-precios").style.display="none";
+  // Destruir mapa
+  if(map){map.remove();map=null;}
+  stData=null;
+  // Scroll arriba
+  window.scrollTo({top:0,behavior:"smooth"});
+  // Focus en campo nombre
+  setTimeout(()=>document.getElementById("nombre-input").focus(),300);
+}
+
+// Limpiar campo
+function limpiarCampo(inputId, resultsId, btnId){
+  document.getElementById(inputId).value="";
+  document.getElementById(resultsId).style.display="none";
+  document.getElementById(btnId).style.display="none";
+  document.getElementById(inputId).focus();
+}
+function toggleClear(btnId, val){
+  document.getElementById(btnId).style.display = val ? "block" : "none";
 }
 
 // Cerrar dropdown al tocar fuera
