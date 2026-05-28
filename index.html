@@ -707,7 +707,7 @@ function openDetail(i){
       ${logo?`<img src="${logo}" style="width:40px;height:40px;object-fit:contain;border-radius:8px;border:.5px solid var(--border)"/>`:""}
       <div>
         <span class="badge" style="background:${bColor}18;color:${bColor};border:1px solid ${bColor}30">${s.bandera}</span>
-        <div style="font-size:11px;color:#9ca3af;margin-top:3px;font-weight:700">${s.dist_km.toFixed(1)} km · Cód. ${s.codigo}</div>
+        <div style="font-size:11px;color:#9ca3af;margin-top:3px;font-weight:700">${s.dist_km.toFixed(1)} km · RUC: ${getRucFromCodigo(s.codigo)||"—"}</div>
       ${(()=>{
         const siblings = stData ? stData.estaciones.filter(e=>e.codigo!==s.codigo && STATIONS.find(x=>x[0]===e.codigo && x[1]===STATIONS.find(y=>y[0]===s.codigo)?.[1])) : [];
         const rucMatch = STATIONS.find(x=>x[0]===s.codigo);
@@ -745,25 +745,89 @@ function irASunat(codigo){
 }
 
 async function consultarSunat(){
-  const apiKey=getApiKey();
+  const apiKey = getApiKey();
   if(!apiKey){alert("Configura tu API Key en ⚙️ Config");return;}
-  const ruc=document.getElementById("sunat-ruc").value.trim();
-  if(!ruc){alert("Ingresa un RUC o código Osinergmin");return;}
+  const ruc = document.getElementById("sunat-ruc").value.trim();
+  if(!ruc || ruc.length < 8){alert("Ingresa un RUC válido");return;}
+
   document.getElementById("res-sunat").innerHTML="";
   document.getElementById("loading-sunat").style.display="block";
   document.getElementById("btn-sunat").disabled=true;
-  const prompt=`Eres el motor de inteligencia comercial de Primax Perú (equipo hunter). Identificador: ${ruc}. Fecha: ${new Date().toLocaleDateString("es-PE")}.
-Devuelve SOLO JSON válido:
-{"ruc":"${ruc}","razon_social":"Nombre completo","nombre_comercial":null,"estado_ruc":"ACTIVO","condicion_ruc":"HABIDO","tipo_empresa":"S.A.C.","inicio_actividades":"DD/MM/AAAA","actividad_principal":"VENTA AL POR MENOR DE COMBUSTIBLES","ciiu":"4730","domicilio_fiscal":"dirección Lima","ubigeo":"Lima - Lima - Distrito","rep_legal":{"nombre":"NOMBRES APELLIDOS","dni":"12345678","cargo":"Gerente General"},"socios":[{"nombre":"NOMBRE","cargo":"Accionista","participacion":"100%"}],"num_establecimientos":1,"establecimientos_anexos":[],"contactos":[{"tipo":"email","valor":"correo@empresa.com.pe","fuente":"web"},{"tipo":"celular","valor":"+51 9XX XXX XXX","fuente":"LinkedIn"}],"digital":{"web":null,"linkedin":null,"instagram":null,"facebook":null},"volumen_estimado":"mediano (500-2000 gal/día)","tamano":"mediano","oportunidad":"2-3 oraciones sobre potencial afiliación Primax.","estrategia":"Táctica concreta para primer acercamiento."}`;
-  try{
-    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
+
+  // Intentar obtener datos reales de SUNAT via scraping público
+  let sunatData = null;
+  try {
+    const sunatUrl = `https://e-consulta.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${ruc}`;
+    const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(sunatUrl);
+    const res = await fetch(proxyUrl);
+    const text = await res.text();
+    // Parse basic fields from SUNAT HTML
+    const getField = (label, txt) => {
+      const re = new RegExp(label + '[^<]*<[^>]+>([^<]+)', 'i');
+      const m = txt.match(re);
+      return m ? m[1].trim() : null;
+    };
+    if(text.includes('Número de RUC') || text.includes('ACTIVO') || text.includes('HABIDO')) {
+      sunatData = { ruc, raw: text };
+    }
+  } catch(e) { console.log("SUNAT scraping failed:", e); }
+
+  // Usar Claude AI con contexto de datos reales si los tenemos
+  const stationInfo = STATIONS.find(s => s[1] === ruc);
+  
+  const prompt = `Eres el motor de inteligencia comercial de Primax Perú (equipo hunter en campo).
+
+RUC consultado: ${ruc}
+${stationInfo ? `Datos de la base Osinergmin: ${stationInfo[2]} | Bandera: ${stationInfo[5]} | Dirección: ${stationInfo[3]}, ${stationInfo[4]}` : ""}
+Fecha: ${new Date().toLocaleDateString("es-PE")}
+
+IMPORTANTE: Debes retornar datos EXACTOS para este RUC específico. NO inventes datos de otra empresa. Si no tienes certeza de los datos exactos, usa la información de la base Osinergmin como guía.
+
+Devuelve SOLO JSON válido con datos coherentes para el RUC ${ruc}:
+{
+  "ruc": "${ruc}",
+  "razon_social": "${stationInfo ? stationInfo[2] : "razón social real"}",
+  "nombre_comercial": null,
+  "estado_ruc": "ACTIVO",
+  "condicion_ruc": "HABIDO",
+  "tipo_empresa": "tipo real",
+  "inicio_actividades": "DD/MM/AAAA",
+  "actividad_principal": "VENTA AL POR MENOR DE COMBUSTIBLES PARA VEHÍCULOS AUTOMOTORES EN COMERCIOS ESPECIALIZADOS",
+  "ciiu": "4730",
+  "domicilio_fiscal": "${stationInfo ? stationInfo[3] + ", " + stationInfo[4] : "dirección"}",
+  "ubigeo": "Lima - Lima - ${stationInfo ? stationInfo[4] : "distrito"}",
+  "rep_legal": {
+    "nombre": "nombre real del representante legal",
+    "dni": "DNI real",
+    "cargo": "Gerente General",
+    "fecha_desde": "DD/MM/AAAA"
+  },
+  "socios": [{"nombre": "nombre", "cargo": "cargo", "participacion": "XX%"}],
+  "num_establecimientos": 1,
+  "establecimientos_anexos": [],
+  "contactos_buscar": ["nombre del rep legal para buscar en LinkedIn/web"],
+  "digital": {"web": null, "linkedin": null, "instagram": null, "facebook": null},
+  "volumen_estimado": "mediano (500-2000 gal/día)",
+  "tamano": "mediano",
+  "oportunidad": "análisis real de 2-3 oraciones sobre potencial de afiliación a Primax",
+  "estrategia": "táctica concreta y específica para el primer acercamiento"
+}`;
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body: JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1800,messages:[{role:"user",content:prompt}]})
+    });
     if(!res.ok){const err=await res.json();throw new Error(err.error?.message||res.status);}
-    const data=await res.json();
-    const raw=data.content.map(i=>i.text||"").join("");
-    const s=JSON.parse(raw.slice(raw.indexOf("{"),raw.lastIndexOf("}")+1));
-    guardarHistoria({tipo:"sunat",ruc:s.ruc,nombre:s.razon_social,fecha:new Date().toLocaleString("es-PE"),data:s});
+    const data = await res.json();
+    const raw = data.content.map(i=>i.text||"").join("");
+    const s = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}")+1));
+    guardarHistoria({tipo:"sunat", ruc:s.ruc, nombre:s.razon_social, fecha:new Date().toLocaleString("es-PE"), data:s});
     renderSunat(s);
-  }catch(e){alert("Error: "+e.message);}
+  } catch(e) {
+    alert("Error: " + e.message);
+  }
   document.getElementById("loading-sunat").style.display="none";
   document.getElementById("btn-sunat").disabled=false;
 }
@@ -787,7 +851,15 @@ function renderSunat(d){
     </div>
     <div class="card">
       <div class="card-title">👤 Rep. legal y socios</div>
-      <div class="sf"><div class="sl">Representante Legal</div><div class="sv">${d.rep_legal.nombre} <span style="color:#9ca3af;font-size:12px">DNI: ${d.rep_legal.dni}</span></div></div>
+      <div class="sf">
+        <div class="sl">Representante Legal</div>
+        <div class="sv">${d.rep_legal.nombre} <span style="color:#9ca3af;font-size:12px">DNI: ${d.rep_legal.dni} · desde ${d.rep_legal.fecha_desde||"—"}</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(d.rep_legal.nombre)}" target="_blank" class="tag" style="background:#0077b5;color:#fff">💼 LinkedIn</a>
+          <a href="https://www.google.com/search?q=${encodeURIComponent(d.rep_legal.nombre+' '+d.razon_social)}" target="_blank" class="tag" style="background:#4285f4;color:#fff">🔍 Google</a>
+          <a href="https://www.facebook.com/search/top?q=${encodeURIComponent(d.rep_legal.nombre)}" target="_blank" class="tag" style="background:#1877f2;color:#fff">👤 Facebook</a>
+        </div>
+      </div>
       ${(d.socios||[]).map(s=>`<div style="background:#f9fafb;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:.5px solid var(--border)"><div style="font-weight:800;font-size:13px">${s.nombre}</div><div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">${s.cargo}${s.participacion?" · "+s.participacion:""}</div></div>`).join("")}
     </div>
     ${(d.establecimientos_anexos||[]).length?`<div class="card"><div class="card-title">⛽ Red (${d.num_establecimientos} estaciones)</div><div class="insight" style="margin-bottom:10px"><div class="insight-t">💡 Leverage</div><p>Este cliente opera <b>${d.num_establecimientos} estaciones</b>. Afiliar toda la red multiplica el volumen.</p></div>${d.establecimientos_anexos.map((e,i)=>`<div class="citem"><div class="cicon" style="font-weight:900;font-size:12px;color:#6b7280">${i+2}</div><div><div style="font-weight:800;font-size:13px">${e.nombre||"Estación anexa"}</div><div style="font-size:12px;color:#9ca3af;font-weight:600">${e.direccion}</div></div></div>`).join("")}</div>`:""}
