@@ -698,26 +698,24 @@ function renderMapa(d){
 // DETALLE MODAL
 // ═══════════════════════════════════════════
 function openDetail(i){
-  const s=stData.estaciones[i];
-  const bColor=getColor(s.bandera);
-  const logo=getLogo(s.bandera);
-  document.getElementById("modal-name").textContent=`#${i+1} · ${s.nombre}`;
-  document.getElementById("modal-body").innerHTML=`
+  const s = stData.estaciones[i];
+  const bColor = getColor(s.bandera);
+  const logo = getLogo(s.bandera);
+  const ruc = getRucFromCodigo(s.codigo);
+  document.getElementById("modal-name").textContent = `#${i+1} · ${s.nombre}`;
+  document.getElementById("modal-body").innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
       ${logo?`<img src="${logo}" style="width:40px;height:40px;object-fit:contain;border-radius:8px;border:.5px solid var(--border)"/>`:""}
       <div>
         <span class="badge" style="background:${bColor}18;color:${bColor};border:1px solid ${bColor}30">${s.bandera}</span>
-        <div style="font-size:11px;color:#9ca3af;margin-top:3px;font-weight:700">${s.dist_km.toFixed(1)} km · RUC: ${getRucFromCodigo(s.codigo)||"—"}</div>
-      ${(()=>{
-        const siblings = stData ? stData.estaciones.filter(e=>e.codigo!==s.codigo && STATIONS.find(x=>x[0]===e.codigo && x[1]===STATIONS.find(y=>y[0]===s.codigo)?.[1])) : [];
-        const rucMatch = STATIONS.find(x=>x[0]===s.codigo);
-        const ruc = rucMatch ? rucMatch[1] : null;
-        const grupoTotal = ruc ? STATIONS.filter(x=>x[1]===ruc).length : 1;
-        return grupoTotal>=2 ? `<div style="margin-top:6px;background:linear-gradient(135deg,#fff7ed,#fff);border:1px solid #fed7aa;border-radius:8px;padding:6px 10px;display:flex;align-items:center;gap:6px"><span style="font-size:14px">🏢</span><div><div style="font-size:11px;font-weight:900;color:#F47920">GRUPO · ${grupoTotal} ESTACIONES</div><div style="font-size:10px;color:#92400e;font-weight:700">Misma razón social — alto leverage</div></div></div>` : "";
-      })()}
+        <div style="font-size:11px;color:#9ca3af;margin-top:3px;font-weight:700">${s.dist_km.toFixed(1)} km · RUC: ${ruc||"—"}</div>
       </div>
       <span class="real-badge" style="margin-left:auto">✅ Real hoy</span>
     </div>
+    ${(()=>{
+      const grupoTotal = ruc ? STATIONS.filter(x=>x[1]===ruc).length : 1;
+      return grupoTotal>=2 ? `<div style="margin-bottom:10px;background:linear-gradient(135deg,#fff7ed,#fff);border:1px solid #fed7aa;border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px"><span style="font-size:16px">🏢</span><div><div style="font-size:12px;font-weight:900;color:#F47920">GRUPO · ${grupoTotal} ESTACIONES</div><div style="font-size:10px;color:#92400e;font-weight:700">Misma razón social — alto leverage</div></div></div>` : "";
+    })()}
     <div class="sf"><div class="sl">Dirección</div><div class="sv">${s.direccion}</div></div>
     <div class="pgrid">
       <div class="pbox"><div class="plabel">Diesel</div><div class="pval">${s.diesel?"S/"+s.diesel.toFixed(2):"—"}</div></div>
@@ -729,7 +727,18 @@ function openDetail(i){
       <div class="sl" style="margin-bottom:6px">Todos los productos</div>
       ${s.productos_raw.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border);font-size:13px;font-weight:700"><span>${p.producto}</span><span>S/${p.precioVenta.toFixed(2)}</span></div>`).join("")}
     </div>`:""}
-    <button class="btn" style="margin-top:16px" onclick="closeModal();irASunat(getRucFromCodigo('${s.codigo}'))">🏢 Consultar en SUNAT →</button>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px">
+      <a href="https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes" target="_blank"
+         style="background:#33ccff;color:#fff;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none">
+        <svg width="18" height="18" viewBox="0 0 48 48" fill="none"><circle cx="24" cy="24" r="24" fill="#33ccff"/><path d="M24 8C15.2 8 8 14.6 8 22.8c0 5.2 2.8 9.8 7 12.6L14 40l5.4-2.2c1.4.4 3 .6 4.6.6 8.8 0 16-6.6 16-14.8S32.8 8 24 8z" fill="#fff"/><circle cx="19" cy="22" r="2" fill="#33ccff"/><circle cx="29" cy="22" r="2" fill="#33ccff"/><path d="M19 27s1.5 3 5 3 5-3 5-3" stroke="#33ccff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+        Waze
+      </a>
+      <a href="https://maps.google.com/?q=${s.lat},${s.lon}" target="_blank"
+         style="background:#4285f4;color:#fff;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none">
+        🗺 Google Maps
+      </a>
+    </div>
+    ${ruc ? `<button class="btn" style="margin-top:8px;background:#fff;color:var(--orange);border:2px solid var(--orange);box-shadow:none;font-size:13px;padding:12px" onclick="closeModal();irASunat('${ruc}')">🏢 Consultar en SUNAT →</button>` : ""}
   `;
   document.getElementById("modal").classList.add("open");
 }
@@ -853,11 +862,11 @@ function renderSunat(d){
       <div class="card-title">👤 Rep. legal y socios</div>
       <div class="sf">
         <div class="sl">Representante Legal</div>
-        <div class="sv">${d.rep_legal.nombre} <span style="color:#9ca3af;font-size:12px">DNI: ${d.rep_legal.dni} · desde ${d.rep_legal.fecha_desde||"—"}</span></div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
-          <a href="https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(d.rep_legal.nombre)}" target="_blank" class="tag" style="background:#0077b5;color:#fff">💼 LinkedIn</a>
-          <a href="https://www.google.com/search?q=${encodeURIComponent(d.rep_legal.nombre+' '+d.razon_social)}" target="_blank" class="tag" style="background:#4285f4;color:#fff">🔍 Google</a>
-          <a href="https://www.facebook.com/search/top?q=${encodeURIComponent(d.rep_legal.nombre)}" target="_blank" class="tag" style="background:#1877f2;color:#fff">👤 Facebook</a>
+        <div class="sv">${d.rep_legal.nombre}</div>
+        <div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">DNI: ${d.rep_legal.dni} · en el cargo desde: ${d.rep_legal.fecha_desde||"—"}</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+          <a href="https://e-consulta.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${d.ruc}" target="_blank" class="tag" style="background:#E30613;color:#fff">📋 Ver en SUNAT</a>
+          <a href="https://www.sunarp.gob.pe/seccion/servicios/detalleServicio.aspx?id=3" target="_blank" class="tag" style="background:#1a5faf;color:#fff">🏛 SUNARP</a>
         </div>
       </div>
       ${(d.socios||[]).map(s=>`<div style="background:#f9fafb;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:.5px solid var(--border)"><div style="font-weight:800;font-size:13px">${s.nombre}</div><div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">${s.cargo}${s.participacion?" · "+s.participacion:""}</div></div>`).join("")}
@@ -874,8 +883,10 @@ function renderSunat(d){
     </div>
     <div class="card" style="border:2px solid var(--orange)">
       <div class="card-title" style="color:var(--orange)">🎯 Estrategia Primax</div>
+      <div style="background:#fff3e0;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#92400e;font-weight:700">
+        ⚠️ ESTIMACIÓN IA — No son datos verificados. Úsalo como orientación, no como hecho.
+      </div>
       <div class="sf"><div class="sl">Volumen estimado</div><div class="sv">${d.volumen_estimado}</div></div>
-      <div class="sf" style="margin-bottom:0"><div class="sl">Oportunidad</div><div class="sv" style="font-size:13px">${d.oportunidad}</div></div>
       <div class="strat"><div class="strat-t">Acercamiento recomendado</div><p>${d.estrategia}</p></div>
     </div>`;
 }
