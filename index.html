@@ -754,8 +754,6 @@ function irASunat(codigo){
 }
 
 async function consultarSunat(){
-  const apiKey = getApiKey();
-  if(!apiKey){alert("Configura tu API Key en ⚙️ Config");return;}
   const ruc = document.getElementById("sunat-ruc").value.trim();
   if(!ruc || ruc.length < 8){alert("Ingresa un RUC válido");return;}
 
@@ -763,117 +761,183 @@ async function consultarSunat(){
   document.getElementById("loading-sunat").style.display="block";
   document.getElementById("btn-sunat").disabled=true;
 
-  // Intentar obtener datos reales de SUNAT via scraping público
-  let sunatData = null;
-  try {
-    const sunatUrl = `https://e-consulta.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${ruc}`;
-    const proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(sunatUrl);
-    const res = await fetch(proxyUrl);
-    const text = await res.text();
-    // Parse basic fields from SUNAT HTML
-    const getField = (label, txt) => {
-      const re = new RegExp(label + '[^<]*<[^>]+>([^<]+)', 'i');
-      const m = txt.match(re);
-      return m ? m[1].trim() : null;
-    };
-    if(text.includes('Número de RUC') || text.includes('ACTIVO') || text.includes('HABIDO')) {
-      sunatData = { ruc, raw: text };
+  // Intentar scraping real de SUNAT via proxy
+  const sunatUrl = `https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${ruc}&tipdoc=1&search1=${ruc}&contexto=ti-it&tQuery=on`;
+  const repUrl = `https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consRepLeg&nroRuc=${ruc}&tipdoc=1`;
+  const anexUrl = `https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consEstAnex&nroRuc=${ruc}&tipdoc=1`;
+
+  let sunatHTML = "", repHTML = "", anexHTML = "";
+  const proxies = [
+    u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  ];
+
+  async function fetchViaProxy(url) {
+    for(const proxy of proxies) {
+      try {
+        const r = await fetch(proxy(url), {headers:{"x-requested-with":"XMLHttpRequest"}});
+        const t = await r.text();
+        if(t && t.length > 100) return t;
+      } catch(e) { continue; }
     }
-  } catch(e) { console.log("SUNAT scraping failed:", e); }
+    return null;
+  }
 
-  // Usar Claude AI con contexto de datos reales si los tenemos
-  const stationInfo = STATIONS.find(s => s[1] === ruc);
-  
-  const prompt = `Eres el motor de inteligencia comercial de Primax Perú (equipo hunter en campo).
-
-RUC consultado: ${ruc}
-${stationInfo ? `Datos de la base Osinergmin: ${stationInfo[2]} | Bandera: ${stationInfo[5]} | Dirección: ${stationInfo[3]}, ${stationInfo[4]}` : ""}
-Fecha: ${new Date().toLocaleDateString("es-PE")}
-
-IMPORTANTE: Debes retornar datos EXACTOS para este RUC específico. NO inventes datos de otra empresa. Si no tienes certeza de los datos exactos, usa la información de la base Osinergmin como guía.
-
-Devuelve SOLO JSON válido con datos coherentes para el RUC ${ruc}:
-{
-  "ruc": "${ruc}",
-  "razon_social": "${stationInfo ? stationInfo[2] : "razón social real"}",
-  "nombre_comercial": null,
-  "estado_ruc": "ACTIVO",
-  "condicion_ruc": "HABIDO",
-  "tipo_empresa": "tipo real",
-  "inicio_actividades": "DD/MM/AAAA",
-  "actividad_principal": "VENTA AL POR MENOR DE COMBUSTIBLES PARA VEHÍCULOS AUTOMOTORES EN COMERCIOS ESPECIALIZADOS",
-  "ciiu": "4730",
-  "domicilio_fiscal": "${stationInfo ? stationInfo[3] + ", " + stationInfo[4] : "dirección"}",
-  "ubigeo": "Lima - Lima - ${stationInfo ? stationInfo[4] : "distrito"}",
-  "rep_legal": {
-    "nombre": "nombre real del representante legal",
-    "dni": "DNI real",
-    "cargo": "Gerente General",
-    "fecha_desde": "DD/MM/AAAA"
-  },
-  "socios": [{"nombre": "nombre", "cargo": "cargo", "participacion": "XX%"}],
-  "num_establecimientos": 1,
-  "establecimientos_anexos": [],
-  "contactos_buscar": ["nombre del rep legal para buscar en LinkedIn/web"],
-  "digital": {"web": null, "linkedin": null, "instagram": null, "facebook": null},
-  "volumen_estimado": "mediano (500-2000 gal/día)",
-  "tamano": "mediano",
-  "oportunidad": "análisis real de 2-3 oraciones sobre potencial de afiliación a Primax",
-  "estrategia": "táctica concreta y específica para el primer acercamiento"
-}`;
+  // Parse helper
+  function parseField(html, label) {
+    const patterns = [
+      new RegExp(label + '[^:]*:[\s\S]*?<[^>]+>([^<]{2,100})<', 'i'),
+      new RegExp('<td[^>]*>[^<]*' + label + '[^<]*<\/td>[\s\S]*?<td[^>]*>([^<]{2,100})<', 'i'),
+    ];
+    for(const p of patterns) {
+      const m = html.match(p);
+      if(m && m[1].trim() && !m[1].includes('&nbsp')) return m[1].trim();
+    }
+    return null;
+  }
 
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body: JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1800,messages:[{role:"user",content:prompt}]})
-    });
-    if(!res.ok){const err=await res.json();throw new Error(err.error?.message||res.status);}
-    const data = await res.json();
-    const raw = data.content.map(i=>i.text||"").join("");
-    const s = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}")+1));
-    guardarHistoria({tipo:"sunat", ruc:s.ruc, nombre:s.razon_social, fecha:new Date().toLocaleString("es-PE"), data:s});
-    renderSunat(s);
-  } catch(e) {
-    alert("Error: " + e.message);
-  }
-  document.getElementById("loading-sunat").style.display="none";
-  document.getElementById("btn-sunat").disabled=false;
-}
+    [sunatHTML, repHTML, anexHTML] = await Promise.all([
+      fetchViaProxy(sunatUrl),
+      fetchViaProxy(repUrl),
+      fetchViaProxy(anexUrl)
+    ]);
+  } catch(e) { console.log("Fetch error:", e); }
 
-function renderSunat(d){
-  const tC=d.tamano==="grande"?"b-red":d.tamano==="mediano"?"b-amber":"b-green";
+  // Parse SUNAT data
+  let data = { ruc };
+
+  if(sunatHTML && sunatHTML.includes(ruc)) {
+    // Extract fields from HTML
+    const getText = (html, search) => {
+      const idx = html.indexOf(search);
+      if(idx < 0) return null;
+      const after = html.indexOf('>', idx + search.length);
+      const end = html.indexOf('<', after + 1);
+      if(after < 0 || end < 0) return null;
+      return html.slice(after+1, end).trim().replace(/&nbsp;/g,'').replace(/\s+/g,' ') || null;
+    };
+
+    // SUNAT page structure: labels in one td, values in next td
+    const tds = sunatHTML.match(/<td[^>]*>([\s\S]*?)<\/td>/gi) || [];
+    const texts = tds.map(td => td.replace(/<[^>]+>/g,'').replace(/\s+/g,' ').trim()).filter(t=>t.length>0);
+    
+    const findAfter = (label) => {
+      const idx = texts.findIndex(t => t.toLowerCase().includes(label.toLowerCase()));
+      return idx >= 0 && texts[idx+1] ? texts[idx+1] : null;
+    };
+
+    data.razon_social = findAfter('Nombre o Razón Social') || findAfter('Razón Social') || 
+                        (STATIONS.find(s=>s[1]===ruc)?.[2]) || ruc;
+    data.estado = findAfter('Estado del Contribuyente') || findAfter('Estado') || '—';
+    data.condicion = findAfter('Condición del Domicilio Fiscal') || findAfter('Condición') || '—';
+    data.domicilio = findAfter('Domicilio Fiscal') || findAfter('Dirección') || '—';
+    data.actividad = findAfter('Actividad(es) Económica(s)') || findAfter('Actividad') || '—';
+    data.inicio = findAfter('Fecha de Inicio de Actividades') || findAfter('Inicio de Actividades') || '—';
+    data.tipo = findAfter('Tipo de Contribuyente') || findAfter('Tipo') || '—';
+    data.parsed = true;
+  } else {
+    // Fallback: use station info from DB
+    const st = STATIONS.find(s=>s[1]===ruc);
+    data.razon_social = st ? st[2] : "No encontrado";
+    data.domicilio = st ? st[3]+", "+st[4] : "—";
+    data.parsed = false;
+  }
+
+  // Parse representantes
+  data.representantes = [];
+  if(repHTML && (repHTML.includes('DNI') || repHTML.includes('GERENTE') || repHTML.includes('Nombre'))) {
+    const rows = repHTML.match(/<tr[\s\S]*?<\/tr>/gi) || [];
+    rows.forEach(row => {
+      const cells = (row.match(/<td[^>]*>([\s\S]*?)<\/td>/gi)||function renderSunat(d){
+  const ruc = d.ruc;
+  const sunatBase = `https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias`;
+  
+  const estadoBadge = (d.estado||"").includes("ACTIVO") ? 
+    `<span class="badge b-green">✅ ACTIVO</span>` : 
+    `<span class="badge b-gray">${d.estado||"—"}</span>`;
+  
+  const condBadge = (d.condicion||"").includes("HABIDO") ?
+    `<span class="badge b-green">📍 HABIDO</span>` :
+    `<span class="badge b-red">⚠️ ${d.condicion||"—"}</span>`;
+
+  // Source badge
+  const sourceBadge = d.parsed ? 
+    `<span class="real-badge">✅ Datos reales SUNAT</span>` :
+    `<span style="background:#fff3e0;color:#92400e;border:.5px solid #fcd34d;border-radius:8px;padding:3px 9px;font-size:10px;font-weight:800">⚠️ Datos parciales — ver SUNAT</span>`;
+
   document.getElementById("res-sunat").innerHTML=`
     <div class="card">
-      <div class="card-title">📋 Datos SUNAT</div>
-      <div class="sf"><div class="sl">RUC</div><div class="sv">${d.ruc}</div></div>
-      <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social}</div></div>
-      ${d.nombre_comercial?`<div class="sf"><div class="sl">Nombre Comercial</div><div class="sv">${d.nombre_comercial}</div></div>`:""}
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-        <span class="badge ${d.estado_ruc==="ACTIVO"?"b-green":"b-red"}">${d.estado_ruc}</span>
-        <span class="badge ${d.condicion_ruc==="HABIDO"?"b-green":"b-red"}">${d.condicion_ruc}</span>
-        <span class="badge ${tC}">Cliente ${d.tamano}</span>
+      <div class="card-title">📋 Datos SUNAT ${sourceBadge}</div>
+      <div class="sf"><div class="sl">RUC</div><div class="sv">${ruc}</div></div>
+      <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social||"—"}</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${estadoBadge}${condBadge}</div>
+      <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo||"—"}</div></div>
+      <div class="sf"><div class="sl">Inicio actividades</div><div class="sv">${d.inicio||"—"}</div></div>
+      <div class="sf"><div class="sl">Actividad económica</div><div class="sv" style="font-size:13px">${d.actividad||"—"}</div></div>
+      <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio||"—"}</div></div>
+      <div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">
+        <a href="${sunatBase}?accion=consPorRuc&nroRuc=${ruc}&tipdoc=1&search1=${ruc}&contexto=ti-it&tQuery=on" target="_blank" class="tag" style="background:#E30613;color:#fff">📋 Ver ficha completa en SUNAT</a>
       </div>
-      <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo_empresa}</div></div>
-      <div class="sf"><div class="sl">Inicio operaciones</div><div class="sv">${d.inicio_actividades}</div></div>
-      <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio_fiscal}</div></div>
     </div>
+
     <div class="card">
-      <div class="card-title">👤 Rep. legal y socios</div>
-      <div class="sf">
-        <div class="sl">Representante Legal</div>
-        <div class="sv">${d.rep_legal.nombre}</div>
-        <div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">DNI: ${d.rep_legal.dni} · en el cargo desde: ${d.rep_legal.fecha_desde||"—"}</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-          <a href="https://e-consulta.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias?accion=consPorRuc&nroRuc=${d.ruc}" target="_blank" class="tag" style="background:#E30613;color:#fff">📋 Ver en SUNAT</a>
-          <a href="https://www.sunarp.gob.pe/seccion/servicios/detalleServicio.aspx?id=3" target="_blank" class="tag" style="background:#1a5faf;color:#fff">🏛 SUNARP</a>
+      <div class="card-title">👤 Representantes legales</div>
+      ${d.representantes && d.representantes.length > 0 ? `
+        ${d.representantes.map(r=>`
+          <div style="background:#f9fafb;border-radius:10px;padding:10px 12px;margin-bottom:8px;border:.5px solid var(--border)">
+            <div style="font-weight:800;font-size:14px">${r.nombre}</div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">${r.cargo} · ${r.tipo_doc}: ${r.nro_doc}</div>
+            <div style="font-size:11px;color:#bbb;margin-top:2px">En el cargo desde: ${r.fecha_desde}</div>
+          </div>`).join("")}
+      ` : `
+        <div style="text-align:center;padding:16px">
+          <p style="font-size:13px;color:#9ca3af;font-weight:600;margin-bottom:10px">Ver representantes directamente en SUNAT</p>
+          <a href="${sunatBase}?accion=consRepLeg&nroRuc=${ruc}&tipdoc=1" target="_blank" class="btn" style="font-size:13px;padding:10px;text-decoration:none">📋 Ver representantes en SUNAT →</a>
         </div>
+      `}
+      <div style="margin-top:8px">
+        <a href="${sunatBase}?accion=consRepLeg&nroRuc=${ruc}&tipdoc=1" target="_blank" class="tag" style="background:#E30613;color:#fff">📋 Verificar en SUNAT</a>
+        <a href="https://www.sunarp.gob.pe/seccion/servicios/detalleServicio.aspx?id=3" target="_blank" class="tag" style="background:#1a5faf;color:#fff">🏛 SUNARP</a>
       </div>
-      ${(d.socios||[]).map(s=>`<div style="background:#f9fafb;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:.5px solid var(--border)"><div style="font-weight:800;font-size:13px">${s.nombre}</div><div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">${s.cargo}${s.participacion?" · "+s.participacion:""}</div></div>`).join("")}
     </div>
-    ${(d.establecimientos_anexos||[]).length?`<div class="card"><div class="card-title">⛽ Red (${d.num_establecimientos} estaciones)</div><div class="insight" style="margin-bottom:10px"><div class="insight-t">💡 Leverage</div><p>Este cliente opera <b>${d.num_establecimientos} estaciones</b>. Afiliar toda la red multiplica el volumen.</p></div>${d.establecimientos_anexos.map((e,i)=>`<div class="citem"><div class="cicon" style="font-weight:900;font-size:12px;color:#6b7280">${i+2}</div><div><div style="font-weight:800;font-size:13px">${e.nombre||"Estación anexa"}</div><div style="font-size:12px;color:#9ca3af;font-weight:600">${e.direccion}</div></div></div>`).join("")}</div>`:""}
+
+    ${d.establecimientos && d.establecimientos.length > 0 ? `
     <div class="card">
-      <div class="card-title">📞 Contactos</div>
+      <div class="card-title">⛽ Establecimientos anexos (${d.establecimientos.length})</div>
+      <div class="insight" style="margin-bottom:10px">
+        <div class="insight-t">💡 Leverage de negociación</div>
+        <p>Este cliente tiene <b>${d.establecimientos.length + 1} establecimientos</b> registrados en SUNAT. Afiliar toda la red multiplica el volumen.</p>
+      </div>
+      ${d.establecimientos.map((e,i)=>`
+        <div class="citem">
+          <div class="cicon" style="font-weight:900;font-size:11px;color:#F47920;background:#fff7ed">${e.codigo}</div>
+          <div><div style="font-weight:700;font-size:13px">${e.tipo}</div><div style="font-size:12px;color:#9ca3af;font-weight:600">${e.direccion}</div></div>
+        </div>`).join("")}
+      <a href="${sunatBase}?accion=consEstAnex&nroRuc=${ruc}&tipdoc=1" target="_blank" class="tag" style="background:#E30613;color:#fff;margin-top:8px;display:inline-block">📋 Ver todos en SUNAT</a>
+    </div>` : `
+    <div class="card">
+      <div class="card-title">⛽ Establecimientos anexos</div>
+      <div style="text-align:center;padding:12px">
+        <p style="font-size:13px;color:#9ca3af;font-weight:600;margin-bottom:10px">Verificar establecimientos directamente en SUNAT</p>
+        <a href="${sunatBase}?accion=consEstAnex&nroRuc=${ruc}&tipdoc=1" target="_blank" class="btn" style="font-size:13px;padding:10px;text-decoration:none">📋 Ver establecimientos en SUNAT →</a>
+      </div>
+    </div>`}
+
+    <div class="card" style="border:2px solid var(--orange)">
+      <div class="card-title" style="color:var(--orange)">🎯 Oportunidad Primax</div>
+      <div style="background:#fff3e0;border-radius:8px;padding:6px 10px;margin-bottom:10px;font-size:10px;color:#92400e;font-weight:700">
+        ⚠️ ESTIMACIÓN IA — orientación solamente, no dato verificado
+      </div>
+      ${(()=>{
+        const st = STATIONS.find(s=>s[1]===ruc);
+        const totalLocs = ruc ? STATIONS.filter(x=>x[1]===ruc).length : 1;
+        return `<div class="sf"><div class="sl">Estaciones en base Osinergmin</div><div class="sv">${totalLocs} ${totalLocs>1?"— GRUPO":"estación"}</div></div>
+        ${st?`<div class="sf"><div class="sl">Bandera actual</div><div class="sv">${st[5]}</div></div>`:""}`;
+      })()}
+    </div>
+  `;
+}"card-title">📞 Contactos</div>
       ${(d.contactos||[]).map(c=>{const icons={email:"📧",telefono:"📞",celular:"📱"};return`<div class="citem"><div class="cicon">${icons[c.tipo]||"📌"}</div><div style="flex:1"><div style="font-weight:800;font-size:13px">${c.valor}</div><div style="font-size:11px;color:#9ca3af;font-weight:600">Fuente: ${c.fuente}</div></div></div>`;}).join("")}
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
         ${d.digital.web?`<a href="${d.digital.web}" target="_blank" class="tag">🌐 Web</a>`:""}
