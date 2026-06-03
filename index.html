@@ -410,10 +410,18 @@ function buscarNombre(val){
   }
   
   box.innerHTML = matches.map(s => {
-    // s = [codigo, ruc, nombre, direccion, distrito, provincia, bandera, lat, lon]
+    // s = [codigo, ruc, nombre, direccion, distrito, bandera, lat, lon]
+    const ruc = s[1];
+    const totalLocs = ruc ? STATIONS.filter(x => x[1] === ruc).length : 1;
+    const esGrupo = totalLocs >= 2;
     return `<div class="search-item" onclick="buscarDesdeNombre(${s[6]},${s[7]},'${s[2].replace(/'/g,"\'")}')">
-      ${s[2]}
-      <small>${s[6]} · ${s[3]}, ${s[4]}</small>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div>
+          <div style="font-weight:800">${s[2]}</div>
+          <small>${s[5]} · ${s[3]}, ${s[4]}</small>
+        </div>
+        ${esGrupo ? `<div style="flex-shrink:0;background:#F47920;color:#fff;border-radius:8px;padding:3px 8px;font-size:11px;font-weight:900;white-space:nowrap">🏢 ${totalLocs} loc.</div>` : ""}
+      </div>
     </div>`;
   }).join("");
   box.style.display = "block";
@@ -595,6 +603,7 @@ function renderPrecios(d){
           ${logo?`<img src="${logo}" class="bandera-logo" alt="${s.bandera}"/>`:""}
           <span style="font-size:10px;font-weight:800;color:${color}">${s.bandera}</span>
           <span style="font-size:10px;color:#9ca3af;font-weight:600">· ${s.dist_km.toFixed(1)}km</span>
+          ${(()=>{const ruc=getRucFromCodigo(s.codigo);const tot=ruc?STATIONS.filter(x=>x[1]===ruc).length:1;return tot>=2?`<span style="background:#F47920;color:#fff;border-radius:6px;padding:1px 6px;font-size:9px;font-weight:900;margin-left:2px">🏢${tot}</span>`:""})()}
         </div>
       </td>
       <td class="pcell ${dc}">${s.diesel?"S/"+s.diesel.toFixed(2):"—"}</td>
