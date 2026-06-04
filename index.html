@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--orange)}
   </div>
   <div>
     <div class="logo-text">PRIMAX HUNTER</div>
-    <div class="logo-sub">Precios reales Facilito · Osinergmin · v4.2</div>
+    <div class="logo-sub">v4.2 · Actualizado 04/Jun/2026 07:14am</div>
   </div>
 </div>
 
@@ -757,73 +757,69 @@ async function abrirSunat(){
   if(!ruc || ruc.length < 8){alert("Ingresa un RUC válido (mínimo 8 dígitos)");return;}
 
   const base = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias";
-  const urlFicha  = `${base}?accion=consPorRuc&nroRuc=${ruc}&tipdoc=1&search1=${ruc}&contexto=ti-it&tQuery=on`;
-  const urlRepLeg = `${base}?accion=consRepLeg&nroRuc=${ruc}&tipdoc=1`;
-  const urlAnexos = `${base}?accion=consEstAnex&nroRuc=${ruc}&tipdoc=1`;
 
-  document.getElementById("link-ficha").href  = urlFicha;
-  document.getElementById("link-repleg").href = urlRepLeg;
-  document.getElementById("link-anexos").href = urlAnexos;
+  // Set SUNAT links
+  document.getElementById("link-ficha").href  = `${base}?accion=consPorRuc&nroRuc=${ruc}&tipdoc=1&search1=${ruc}&contexto=ti-it&tQuery=on`;
+  document.getElementById("link-repleg").href = `${base}?accion=consRepLeg&nroRuc=${ruc}&tipdoc=1`;
+  document.getElementById("link-anexos").href = `${base}?accion=consEstAnex&nroRuc=${ruc}&tipdoc=1`;
 
-  // Try to get real data via Claude AI → Decolecta API
-  const apiKey = getApiKey();
-  const decolectaToken = "sk_16129.yczjxRaU3iyRQECFocMwrmYpqHMBdhWQ";
-  
-  // Show partial results immediately (from DB)
+  // Get station from DB
   const st = STATIONS.find(s => s[1] === ruc);
-  renderSunatBase(ruc, st);
 
-  // If API key available, fetch real SUNAT data via Claude
-  if(apiKey){
-    document.getElementById("sunat-loading-real").style.display="block";
-    try{
-      const prompt = `Consulta la API de Decolecta para obtener datos reales de SUNAT del RUC ${ruc}.
+  // Set name and RUC display
+  document.getElementById("sunat-nombre").textContent = st ? st[2] : `RUC: ${ruc}`;
+  document.getElementById("sunat-ruc-display").textContent = st ? `RUC: ${ruc} · ${st[5]} · ${st[4]}` : `RUC: ${ruc}`;
 
-Haz una llamada HTTP GET a esta URL exacta y devuelve el JSON de respuesta:
-URL: https://api.decolecta.com/v1/sunat/ruc/full?numero=${ruc}&token=${decolectaToken}
+  // Excel data
+  if(st){
+    const totalLocs = STATIONS.filter(x => x[1] === ruc).length;
+    document.getElementById("sunat-excel-data").innerHTML = `
+      <div style="background:#f9fafb;border-radius:10px;padding:11px;margin-bottom:12px;border:.5px solid var(--border)">
+        <div style="font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;margin-bottom:6px">📊 Base Osinergmin</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div style="font-size:10px;color:#bbb;font-weight:700">BANDERA</div><div style="font-weight:800;font-size:13px;color:${getColor(st[5])}">${st[5]}</div></div>
+          <div><div style="font-size:10px;color:#bbb;font-weight:700">DISTRITO</div><div style="font-weight:700;font-size:13px">${st[4]}</div></div>
+          <div style="grid-column:1/-1"><div style="font-size:10px;color:#bbb;font-weight:700">DIRECCIÓN</div><div style="font-weight:600;font-size:12px">${st[3]}</div></div>
+        </div>
+      </div>`;
 
-Devuelve SOLO el JSON de respuesta de la API, sin texto adicional, sin markdown. 
-Si la llamada falla, devuelve: {"error": "no_data"}`;
-
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 1000,
-          tools: [{
-            type: "web_search_20250305",
-            name: "web_search"
-          }],
-          messages: [{role: "user", content: prompt}]
-        })
-      });
-
-      if(res.ok){
-        const data = await res.json();
-        const text = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
-        const j1 = text.indexOf("{"), j2 = text.lastIndexOf("}");
-        if(j1>=0 && j2>j1){
-          const sunatData = JSON.parse(text.slice(j1,j2+1));
-          if(!sunatData.error){
-            renderSunatReal(ruc, sunatData, st);
-          }
-        }
-      }
-    }catch(e){
-      console.log("Decolecta via Claude failed:", e);
+    // Grupo
+    if(totalLocs >= 2){
+      const allLocs = STATIONS.filter(x => x[1] === ruc);
+      document.getElementById("sunat-grupo-card").style.display = "block";
+      document.getElementById("sunat-grupo-content").innerHTML = `
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+          <div style="font-size:22px">🏢</div>
+          <div><div style="font-size:13px;font-weight:900;color:#F47920">GRUPO · ${totalLocs} ESTACIONES</div>
+          <div style="font-size:11px;color:#92400e;font-weight:600">Misma razón social — alto leverage</div></div>
+        </div>
+        ${allLocs.map((s,i) => `
+          <div style="display:flex;gap:10px;padding:8px 0;border-bottom:.5px solid var(--border);align-items:flex-start">
+            <div style="width:22px;height:22px;border-radius:50%;background:#F47920;color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">${i+1}</div>
+            <div><div style="font-size:12px;font-weight:700">${s[3]}</div>
+            <div style="font-size:11px;color:#9ca3af;font-weight:600">${s[4]} · Cód: ${s[0]}</div></div>
+          </div>`).join("")}`;
+    } else {
+      document.getElementById("sunat-grupo-card").style.display = "none";
     }
-    document.getElementById("sunat-loading-real").style.display="none";
+
+    document.getElementById("sunat-campo-data").innerHTML = `
+      <div class="sf"><div class="sl">Estaciones en base</div><div class="sv">${totalLocs}</div></div>
+      <div class="sf"><div class="sl">Bandera</div><div class="sv" style="color:${getColor(st[5])};font-weight:800">${st[5]}</div></div>
+      <div class="sf" style="margin:0"><div class="sl">Código Osinergmin</div><div class="sv">${st[0]}</div></div>`;
+  } else {
+    document.getElementById("sunat-excel-data").innerHTML = `
+      <div style="background:#fff3e0;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#92400e;font-weight:600">
+        ⚠️ RUC no está en tu base Osinergmin. Usa los botones para ver datos en SUNAT.
+      </div>`;
+    document.getElementById("sunat-grupo-card").style.display = "none";
+    document.getElementById("sunat-campo-data").innerHTML = `<p style="font-size:13px;color:#9ca3af">RUC no encontrado en base Osinergmin.</p>`;
   }
 
-  document.getElementById("res-sunat-links").style.display="block";
+  // Show results
+  document.getElementById("res-sunat-links").style.display = "block";
   guardarHistoria({tipo:"sunat", ruc, nombre: st ? st[2] : ruc, fecha: new Date().toLocaleString("es-PE")});
-  document.getElementById("res-sunat-links").scrollIntoView({behavior:"smooth"});
+  setTimeout(()=>document.getElementById("res-sunat-links").scrollIntoView({behavior:"smooth"}), 100);
 }
 
 function renderSunatBase(ruc, st){
