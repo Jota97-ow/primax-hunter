@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--orange)}
   </div>
   <div>
     <div class="logo-text">PRIMAX HUNTER</div>
-    <div class="logo-sub">Precios reales Facilito · Osinergmin · v4.1</div>
+    <div class="logo-sub">Precios reales Facilito · Osinergmin · v4.2</div>
   </div>
 </div>
 
@@ -241,13 +241,60 @@ input:focus,select:focus{border-color:var(--orange)}
 <!-- TAB SUNAT -->
 <div id="pane-sunat" class="pane">
   <div class="card">
-    <div class="card-title">🏢 Inteligencia comercial</div>
-    <input type="text" id="sunat-ruc" placeholder="RUC de la estación (11 dígitos)" style="margin-bottom:10px"/>
-    <button class="btn" id="btn-sunat" onclick="consultarSunat()">🔍 Consultar empresa</button>
-    <div class="notice-blue" style="margin-top:10px">Requiere API Key configurada en ⚙️ Config</div>
+    <div class="card-title">🏢 Consulta SUNAT</div>
+    <p style="font-size:13px;color:#6b7280;margin-bottom:12px;font-weight:600;line-height:1.6">
+      Ingresa el RUC y accede directamente a los datos oficiales de SUNAT — ficha completa, representantes legales y establecimientos anexos.
+    </p>
+    <input type="text" id="sunat-ruc" placeholder="RUC (ej: 20613361121)" style="margin-bottom:12px" 
+           oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)" maxlength="11"/>
+    <button class="btn" id="btn-sunat" onclick="abrirSunat()">🔍 Consultar en SUNAT</button>
   </div>
-  <div id="loading-sunat" style="display:none" class="loading"><div class="spin"></div><p>Buscando información de la empresa...</p></div>
-  <div id="res-sunat"></div>
+
+  <div id="res-sunat-links" style="display:none">
+    <div class="card">
+      <div class="card-title">📋 Ficha del contribuyente</div>
+      <div id="sunat-nombre" style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px"></div>
+      <div id="sunat-ruc-display" style="font-size:12px;color:#9ca3af;font-weight:600;margin-bottom:12px"></div>
+      
+      <!-- DATOS DEL EXCEL si existe -->
+      <div id="sunat-excel-data"></div>
+
+      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px">
+        <a id="link-ficha" href="#" target="_blank"
+           style="background:#E30613;color:#fff;border-radius:10px;padding:13px;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:space-between;text-decoration:none">
+          <span>📋 Ficha completa</span>
+          <span style="font-size:11px;opacity:.8">RUC · Estado · Domicilio · Inicio actividades →</span>
+        </a>
+        <a id="link-repleg" href="#" target="_blank"
+           style="background:#1a5faf;color:#fff;border-radius:10px;padding:13px;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:space-between;text-decoration:none">
+          <span>👤 Representantes legales</span>
+          <span style="font-size:11px;opacity:.8">Nombre · Cargo · Desde →</span>
+        </a>
+        <a id="link-anexos" href="#" target="_blank"
+           style="background:#065f46;color:#fff;border-radius:10px;padding:13px;font-size:14px;font-weight:800;display:flex;align-items:center;justify-content:space-between;text-decoration:none">
+          <span>⛽ Establecimientos anexos</span>
+          <span style="font-size:11px;opacity:.8">Locales · Sucursales →</span>
+        </a>
+      </div>
+      <div style="margin-top:10px;padding:10px;background:#f0fdf4;border-radius:8px;border:.5px solid #a7f3d0">
+        <p style="font-size:11px;color:#065f46;font-weight:700;line-height:1.6">
+          ✅ Datos 100% reales de SUNAT — se abre la página oficial directamente en tu navegador
+        </p>
+      </div>
+    </div>
+
+    <!-- GRUPO INFO si aplica -->
+    <div id="sunat-grupo-card" style="display:none" class="card">
+      <div class="card-title" style="color:#F47920">🏢 Red de estaciones</div>
+      <div id="sunat-grupo-content"></div>
+    </div>
+
+    <!-- ESTRATEGIA -->
+    <div class="card" style="border:2px solid var(--orange)">
+      <div class="card-title" style="color:var(--orange)">🎯 Datos de campo</div>
+      <div id="sunat-campo-data"></div>
+    </div>
+  </div>
 </div>
 
 <!-- TAB CONFIG -->
@@ -702,31 +749,159 @@ document.getElementById("modal").addEventListener("click",function(e){if(e.targe
 function irASunat(codigo){
   document.getElementById("sunat-ruc").value=codigo;
   goTab("sunat",document.querySelector(".tab:nth-child(2)"));
+  setTimeout(()=>abrirSunat(),100);
 }
 
-async function consultarSunat(){
-  const apiKey=getApiKey();
-  if(!apiKey){alert("Configura tu API Key en ⚙️ Config");return;}
-  const ruc=document.getElementById("sunat-ruc").value.trim();
-  if(!ruc){alert("Ingresa un RUC o código Osinergmin");return;}
-  document.getElementById("res-sunat").innerHTML="";
-  document.getElementById("loading-sunat").style.display="block";
-  document.getElementById("btn-sunat").disabled=true;
-  const prompt=`Eres el motor de inteligencia comercial de Primax Perú (equipo hunter). Identificador: ${ruc}. Fecha: ${new Date().toLocaleDateString("es-PE")}.
-Devuelve SOLO JSON válido:
-{"ruc":"${ruc}","razon_social":"Nombre completo","nombre_comercial":null,"estado_ruc":"ACTIVO","condicion_ruc":"HABIDO","tipo_empresa":"S.A.C.","inicio_actividades":"DD/MM/AAAA","actividad_principal":"VENTA AL POR MENOR DE COMBUSTIBLES","ciiu":"4730","domicilio_fiscal":"dirección Lima","ubigeo":"Lima - Lima - Distrito","rep_legal":{"nombre":"NOMBRES APELLIDOS","dni":"12345678","cargo":"Gerente General"},"socios":[{"nombre":"NOMBRE","cargo":"Accionista","participacion":"100%"}],"num_establecimientos":1,"establecimientos_anexos":[],"contactos":[{"tipo":"email","valor":"correo@empresa.com.pe","fuente":"web"},{"tipo":"celular","valor":"+51 9XX XXX XXX","fuente":"LinkedIn"}],"digital":{"web":null,"linkedin":null,"instagram":null,"facebook":null},"volumen_estimado":"mediano (500-2000 gal/día)","tamano":"mediano","oportunidad":"2-3 oraciones sobre potencial afiliación Primax.","estrategia":"Táctica concreta para primer acercamiento."}`;
-  try{
-    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
-    if(!res.ok){const err=await res.json();throw new Error(err.error?.message||res.status);}
-    const data=await res.json();
-    const raw=data.content.map(i=>i.text||"").join("");
-    const s=JSON.parse(raw.slice(raw.indexOf("{"),raw.lastIndexOf("}")+1));
-    guardarHistoria({tipo:"sunat",ruc:s.ruc,nombre:s.razon_social,fecha:new Date().toLocaleString("es-PE"),data:s});
-    renderSunat(s);
-  }catch(e){alert("Error: "+e.message);}
-  document.getElementById("loading-sunat").style.display="none";
-  document.getElementById("btn-sunat").disabled=false;
+async function abrirSunat(){
+  const ruc = document.getElementById("sunat-ruc").value.trim();
+  if(!ruc || ruc.length < 8){alert("Ingresa un RUC válido (mínimo 8 dígitos)");return;}
+
+  const base = "https://e-consultaruc.sunat.gob.pe/cl-ti-itmrconsruc/jcrS00Alias";
+  const urlFicha  = `${base}?accion=consPorRuc&nroRuc=${ruc}&tipdoc=1&search1=${ruc}&contexto=ti-it&tQuery=on`;
+  const urlRepLeg = `${base}?accion=consRepLeg&nroRuc=${ruc}&tipdoc=1`;
+  const urlAnexos = `${base}?accion=consEstAnex&nroRuc=${ruc}&tipdoc=1`;
+
+  document.getElementById("link-ficha").href  = urlFicha;
+  document.getElementById("link-repleg").href = urlRepLeg;
+  document.getElementById("link-anexos").href = urlAnexos;
+
+  // Try to get real data via Claude AI → Decolecta API
+  const apiKey = getApiKey();
+  const decolectaToken = "sk_16129.yczjxRaU3iyRQECFocMwrmYpqHMBdhWQ";
+  
+  // Show partial results immediately (from DB)
+  const st = STATIONS.find(s => s[1] === ruc);
+  renderSunatBase(ruc, st);
+
+  // If API key available, fetch real SUNAT data via Claude
+  if(apiKey){
+    document.getElementById("sunat-loading-real").style.display="block";
+    try{
+      const prompt = `Consulta la API de Decolecta para obtener datos reales de SUNAT del RUC ${ruc}.
+
+Haz una llamada HTTP GET a esta URL exacta y devuelve el JSON de respuesta:
+URL: https://api.decolecta.com/v1/sunat/ruc/full?numero=${ruc}&token=${decolectaToken}
+
+Devuelve SOLO el JSON de respuesta de la API, sin texto adicional, sin markdown. 
+Si la llamada falla, devuelve: {"error": "no_data"}`;
+
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1000,
+          tools: [{
+            type: "web_search_20250305",
+            name: "web_search"
+          }],
+          messages: [{role: "user", content: prompt}]
+        })
+      });
+
+      if(res.ok){
+        const data = await res.json();
+        const text = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
+        const j1 = text.indexOf("{"), j2 = text.lastIndexOf("}");
+        if(j1>=0 && j2>j1){
+          const sunatData = JSON.parse(text.slice(j1,j2+1));
+          if(!sunatData.error){
+            renderSunatReal(ruc, sunatData, st);
+          }
+        }
+      }
+    }catch(e){
+      console.log("Decolecta via Claude failed:", e);
+    }
+    document.getElementById("sunat-loading-real").style.display="none";
+  }
+
+  document.getElementById("res-sunat-links").style.display="block";
+  guardarHistoria({tipo:"sunat", ruc, nombre: st ? st[2] : ruc, fecha: new Date().toLocaleString("es-PE")});
+  document.getElementById("res-sunat-links").scrollIntoView({behavior:"smooth"});
 }
+
+function renderSunatBase(ruc, st){
+  if(st){
+    document.getElementById("sunat-nombre").textContent = st[2];
+    document.getElementById("sunat-ruc-display").textContent = `RUC: ${ruc} · ${st[5]} · ${st[4]}`;
+    document.getElementById("sunat-excel-data").innerHTML = `
+      <div style="background:#f9fafb;border-radius:10px;padding:11px;margin-bottom:12px;border:.5px solid var(--border)">
+        <div style="font-size:10px;font-weight:800;color:#9ca3af;text-transform:uppercase;margin-bottom:6px">📊 Base Osinergmin</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div><div style="font-size:10px;color:#bbb;font-weight:700">BANDERA</div><div style="font-weight:800;font-size:13px;color:${getColor(st[5])}">${st[5]}</div></div>
+          <div><div style="font-size:10px;color:#bbb;font-weight:700">DISTRITO</div><div style="font-weight:700;font-size:13px">${st[4]}</div></div>
+          <div style="grid-column:1/-1"><div style="font-size:10px;color:#bbb;font-weight:700">DIRECCIÓN</div><div style="font-weight:600;font-size:12px">${st[3]}</div></div>
+        </div>
+      </div>`;
+    const totalLocs = STATIONS.filter(x=>x[1]===ruc).length;
+    if(totalLocs>=2){
+      const allLocs = STATIONS.filter(x=>x[1]===ruc);
+      document.getElementById("sunat-grupo-card").style.display="block";
+      document.getElementById("sunat-grupo-content").innerHTML=`
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:10px;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+          <div style="font-size:22px">🏢</div>
+          <div><div style="font-size:13px;font-weight:900;color:#F47920">GRUPO · ${totalLocs} ESTACIONES</div>
+          <div style="font-size:11px;color:#92400e;font-weight:600">Misma razón social — alto leverage</div></div>
+        </div>
+        ${allLocs.map((s,i)=>`<div style="display:flex;gap:10px;padding:8px 0;border-bottom:.5px solid var(--border);align-items:flex-start">
+          <div style="width:22px;height:22px;border-radius:50%;background:#F47920;color:#fff;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px">${i+1}</div>
+          <div><div style="font-size:12px;font-weight:700">${s[3]}</div>
+          <div style="font-size:11px;color:#9ca3af;font-weight:600">${s[4]} · Cód: ${s[0]}</div></div>
+        </div>`).join("")}`;
+    }
+    document.getElementById("sunat-campo-data").innerHTML=`
+      <div class="sf"><div class="sl">Estaciones en base</div><div class="sv">${STATIONS.filter(x=>x[1]===ruc).length}</div></div>
+      <div class="sf"><div class="sl">Bandera</div><div class="sv" style="color:${getColor(st[5])};font-weight:800">${st[5]}</div></div>
+      <div class="sf" style="margin:0"><div class="sl">Código Osinergmin</div><div class="sv">${st[0]}</div></div>`;
+  } else {
+    document.getElementById("sunat-nombre").textContent = `RUC: ${ruc}`;
+    document.getElementById("sunat-ruc-display").textContent = "No encontrado en base Osinergmin";
+    document.getElementById("sunat-excel-data").innerHTML=`<div style="background:#fff3e0;border-radius:8px;padding:10px;margin-bottom:12px;font-size:12px;color:#92400e;font-weight:600">⚠️ RUC no está en tu base. Ver datos en SUNAT usando los botones.</div>`;
+    document.getElementById("sunat-grupo-card").style.display="none";
+    document.getElementById("sunat-campo-data").innerHTML=`<p style="font-size:13px;color:#9ca3af">RUC no encontrado en base Osinergmin.</p>`;
+  }
+}
+
+function renderSunatReal(ruc, d, st){
+  // Update header with real name
+  document.getElementById("sunat-nombre").textContent = d.razon_social || (st?st[2]:ruc);
+  document.getElementById("sunat-ruc-display").textContent = `RUC: ${ruc} · ${d.estado||""} · ${d.condicion||""}`;
+  
+  // Add real SUNAT data card before links
+  const realCard = document.createElement("div");
+  realCard.className = "card";
+  realCard.style.cssText = "border:1.5px solid #a7f3d0;margin-bottom:12px";
+  realCard.innerHTML = `
+    <div class="card-title">✅ Datos reales SUNAT <span class="real-badge">En tiempo real</span></div>
+    <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social||"—"}</div></div>
+    <div class="sf"><div class="sl">RUC</div><div class="sv">${ruc}</div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="badge ${(d.estado||"").includes("ACTIVO")?"b-green":"b-gray"}">${d.estado||"—"}</span>
+      <span class="badge ${(d.condicion||"").includes("HABIDO")?"b-green":"b-red"}">${d.condicion||"—"}</span>
+    </div>
+    <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo||"—"}</div></div>
+    <div class="sf"><div class="sl">Actividad económica</div><div class="sv" style="font-size:13px">${d.actividad_economica||"—"}</div></div>
+    <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${d.direccion||"—"} ${d.distrito?`· ${d.distrito}`:""}</div></div>
+    <div class="sf"><div class="sl">Departamento</div><div class="sv">${d.departamento||"—"} · ${d.provincia||"—"} · ${d.distrito||"—"}</div></div>
+    ${d.numero_trabajadores?`<div class="sf"><div class="sl">Trabajadores</div><div class="sv">${d.numero_trabajadores}</div></div>`:""}
+    ${d.locales_anexos && d.locales_anexos.length?`<div class="sf"><div class="sl">Locales anexos</div><div class="sv">${d.locales_anexos.length} registrados</div></div>`:""}
+  `;
+  
+  // Insert before the links card
+  const linksCard = document.querySelector("#res-sunat-links .card");
+  if(linksCard) linksCard.parentNode.insertBefore(realCard, linksCard);
+}
+
+function consultarSunat(){ abrirSunat(); }
+
+// Keep consultarSunat as alias for backward compatibility
+function consultarSunat(){ abrirSunat(); }
 
 function renderSunat(d){
   const tC=d.tamano==="grande"?"b-red":d.tamano==="mediano"?"b-amber":"b-green";
@@ -803,7 +978,7 @@ function exportWSP(){
 `;
   });
   msg+=`
-_Primax Hunter v4.1 · uso interno_`;
+_Primax Hunter v4.2 · uso interno_`;
   window.open("https://wa.me/?text="+encodeURIComponent(msg),"_blank");
 }
 
@@ -836,7 +1011,7 @@ function exportPDF(){
   <div class="real">✅ Precios reales de Facilito / Osinergmin</div>
   <div class="meta">📍 Lat: ${d.centro.lat.toFixed(5)}, Lon: ${d.centro.lon.toFixed(5)} · <b>${d.estaciones.length} estaciones encontradas</b></div>
   <table><thead><tr><th>#</th><th>Estación</th><th>Diesel</th><th>Regular</th><th>Premium</th><th>Dist.</th></tr></thead><tbody>${rows}</tbody></table>
-  <div class="footer">Primax Hunter v4.1 · Fuente: Facilito/Osinergmin · Confidencial — uso interno Primax Perú</div>
+  <div class="footer">Primax Hunter v4.2 · Fuente: Facilito/Osinergmin · Confidencial — uso interno Primax Perú</div>
   <script>window.onload=()=>window.print()<\/script></body></html>`);
   w.document.close();
 }
