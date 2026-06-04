@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--orange)}
   </div>
   <div>
     <div class="logo-text">PRIMAX HUNTER</div>
-    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 07:50am</div>
+    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 08:00am</div>
   </div>
 </div>
 
@@ -242,12 +242,26 @@ input:focus,select:focus{border-color:var(--orange)}
 <div id="pane-sunat" class="pane">
   <div class="card">
     <div class="card-title">🏢 Consulta SUNAT</div>
-    <p style="font-size:13px;color:#6b7280;margin-bottom:12px;font-weight:600;line-height:1.6">
-      Ingresa el RUC y accede directamente a los datos oficiales de SUNAT — ficha completa, representantes legales y establecimientos anexos.
+    <p style="font-size:13px;color:#6b7280;margin-bottom:10px;font-weight:600;line-height:1.5">
+      Busca por razón social o ingresa el RUC directamente.
     </p>
-    <input type="text" id="sunat-ruc" placeholder="RUC (ej: 20613361121)" style="margin-bottom:12px" 
+
+    <!-- Búsqueda por nombre -->
+    <div style="position:relative;margin-bottom:10px">
+      <input type="text" id="sunat-nombre-input" placeholder="Razón social (ej: CLARIGO, SANTA FE...)" 
+             oninput="buscarNombreSunat(this.value)" autocomplete="off" style="padding-right:40px"/>
+      <div id="sunat-nombre-results" class="search-results"></div>
+    </div>
+
+    <div class="sep">o por RUC</div>
+    <input type="text" id="sunat-ruc" placeholder="RUC (ej: 20613361121)" style="margin-bottom:12px"
            oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,11)" maxlength="11"/>
     <button class="btn" id="btn-sunat" onclick="abrirSunat()">🔍 Consultar en SUNAT</button>
+  </div>
+
+  <div id="sunat-loading-real" style="display:none" class="loading">
+    <div class="spin"></div>
+    <p>Consultando SUNAT...</p>
   </div>
 
   <div id="res-sunat-links" style="display:none">
@@ -255,10 +269,7 @@ input:focus,select:focus{border-color:var(--orange)}
       <div class="card-title">📋 Ficha del contribuyente</div>
       <div id="sunat-nombre" style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px"></div>
       <div id="sunat-ruc-display" style="font-size:12px;color:#9ca3af;font-weight:600;margin-bottom:12px"></div>
-      
-      <!-- DATOS DEL EXCEL si existe -->
       <div id="sunat-excel-data"></div>
-
       <div id="sunat-real-card" style="display:none;background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;border:.5px solid var(--border)"></div>
       <a id="link-ficha" href="#" target="_blank"
          style="display:flex;align-items:center;justify-content:center;gap:8px;background:#E30613;color:#fff;border-radius:10px;padding:14px;font-size:15px;font-weight:800;text-decoration:none;margin-top:8px">
@@ -270,21 +281,17 @@ input:focus,select:focus{border-color:var(--orange)}
         </p>
       </div>
     </div>
-
-    <!-- GRUPO INFO si aplica -->
     <div id="sunat-grupo-card" style="display:none" class="card">
       <div class="card-title" style="color:#F47920">🏢 Red de estaciones</div>
       <div id="sunat-grupo-content"></div>
     </div>
-
-    <!-- ESTRATEGIA -->
     <div class="card" style="border:2px solid var(--orange)">
       <div class="card-title" style="color:var(--orange)">🎯 Datos de campo</div>
       <div id="sunat-campo-data"></div>
     </div>
+    <button class="btn" style="background:#fff;color:var(--orange);border:2px solid var(--orange);box-shadow:none;margin-top:4px" onclick="nuevaBusquedaSunat()">🔄 Nueva consulta</button>
   </div>
 </div>
-
 <!-- TAB CONFIG -->
 <div id="pane-config" class="pane">
   <div class="card">
@@ -829,54 +836,51 @@ async function abrirSunat(){
 }
 
 function renderSunatData(d){
-  // Build full domicilio from all address fields
-  const dir = [
-    d.via_tipo, d.via_nombre, 
-    d.numero && d.numero!=="-" ? "NRO "+d.numero : "",
-    d.interior && d.interior!=="-" ? "INT "+d.interior : "",
-    d.zona_codigo && d.zona_codigo!=="-" ? d.zona_codigo : "",
-    d.zona_tipo && d.zona_tipo!=="-" ? d.zona_tipo : ""
-  ].filter(Boolean).join(" ");
-  
-  const domicilio = dir || d.direccion || "—";
+  // Use direccion directly from API (most complete)
+  const domicilio = d.direccion 
+    ? d.direccion.trim() + (d.distrito ? " — " + d.distrito + ", " + d.provincia + " - " + d.departamento : "")
+    : "—";
+
   const ubigeo = [d.distrito, d.provincia, d.departamento].filter(Boolean).join(" · ");
+  const locales = d.locales_anexos || [];
 
   if(d.razon_social) document.getElementById("sunat-nombre").textContent = d.razon_social;
 
+  // Format locales anexos properly
+  const localesHTML = locales.length ? `
+    <div style="margin-top:8px">
+      <div class="sl" style="margin-bottom:6px">LOCALES ANEXOS (${locales.length})</div>
+      ${locales.map((e,i)=>{
+        const dir = typeof e === "object" 
+          ? [e.direccion, e.distrito, e.provincia, e.departamento].filter(Boolean).join(", ")
+          : String(e);
+        return `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:.5px solid var(--border);font-size:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:6px;background:#fff7ed;color:#F47920;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${i+1}</div>
+          <div style="font-weight:600;line-height:1.4">${dir||"—"}</div>
+        </div>`;
+      }).join("")}
+    </div>` : "";
+
   document.getElementById("sunat-real-card").innerHTML = `
     <div class="card-title">📋 Datos SUNAT <span class="real-badge">✅ Real</span></div>
-    
     <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social||"—"}</div></div>
     <div class="sf"><div class="sl">RUC</div><div class="sv">${d.numero_documento||"—"}</div></div>
-    
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
       <span class="badge ${(d.estado||"").includes("ACTIVO")?"b-green":"b-red"}">${d.estado||"—"}</span>
       <span class="badge ${(d.condicion||"").includes("HABIDO")?"b-green":"b-red"}">${d.condicion||"—"}</span>
       ${d.es_buen_contribuyente?'<span class="badge b-blue">⭐ Buen contribuyente</span>':""}
     </div>
-
     <div class="sf"><div class="sl">Tipo de empresa</div><div class="sv">${d.tipo||"—"}</div></div>
     <div class="sf"><div class="sl">Actividad económica</div><div class="sv" style="font-size:13px">${d.actividad_economica||"—"}</div></div>
     <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${domicilio}</div></div>
     ${ubigeo?`<div class="sf"><div class="sl">Ubicación</div><div class="sv">${ubigeo}</div></div>`:""}
-    
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
       ${d.numero_trabajadores?`<div style="background:#f9fafb;border-radius:8px;padding:8px;text-align:center;border:.5px solid var(--border)"><div style="font-size:10px;color:#9ca3af;font-weight:700">TRABAJADORES</div><div style="font-size:18px;font-weight:900">${d.numero_trabajadores}</div></div>`:""}
       ${d.tipo_facturacion?`<div style="background:#f9fafb;border-radius:8px;padding:8px;text-align:center;border:.5px solid var(--border)"><div style="font-size:10px;color:#9ca3af;font-weight:700">FACTURACIÓN</div><div style="font-size:11px;font-weight:700;margin-top:2px">${d.tipo_facturacion}</div></div>`:""}
     </div>
-
-    ${d.locales_anexos && d.locales_anexos.length ? `
-    <div style="margin-top:8px">
-      <div class="sl" style="margin-bottom:6px">LOCALES ANEXOS (${d.locales_anexos.length})</div>
-      ${d.locales_anexos.map((e,i)=>`
-        <div style="display:flex;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);font-size:12px">
-          <div style="width:24px;height:24px;border-radius:6px;background:#fff7ed;color:#F47920;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
-          <div style="font-weight:600">${typeof e==="string"?e:JSON.stringify(e)}</div>
-        </div>`).join("")}
-    </div>` : ""}
-
+    ${localesHTML}
     <div style="margin-top:10px;padding:8px 10px;background:#eff6ff;border-radius:8px;font-size:11px;color:#1e3a8a;font-weight:700">
-      ℹ️ Para representantes legales y establecimientos anexos → botón rojo "Ver en SUNAT"
+      ℹ️ Para representantes legales → botón rojo "Ver en SUNAT"
     </div>`;
 }
 
@@ -1057,6 +1061,56 @@ function reloadHistoria(i){
     if(h.data)renderSunat(h.data);
   }
 }
+
+// ═══ BUSCAR NOMBRE EN SUNAT ═══
+function buscarNombreSunat(val){
+  const box = document.getElementById("sunat-nombre-results");
+  if(!val || val.length < 2){box.style.display="none";return;}
+  const q = val.toLowerCase().trim();
+  const matches = STATIONS.filter(s => s[2].toLowerCase().includes(q)).slice(0, 10);
+  if(!matches.length){
+    box.innerHTML=`<div class="search-item" style="color:#9ca3af">Sin resultados para "${val}"</div>`;
+    box.style.display="block"; return;
+  }
+  box.innerHTML = matches.map(s => {
+    const totalLocs = STATIONS.filter(x => x[1] === s[1]).length;
+    const esGrupo = totalLocs >= 2;
+    return `<div class="search-item" onclick="seleccionarEmpresaSunat('${s[1]}','${s[2].replace(/'/g,"\'")}')">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+        <div>${s[2]}<small>${s[5]} · ${s[3]}, ${s[4]}</small></div>
+        ${esGrupo?`<div style="flex-shrink:0;background:#F47920;color:#fff;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:900">🏢 ${totalLocs}</div>`:""}
+      </div>
+    </div>`;
+  }).join("");
+  box.style.display="block";
+}
+
+function seleccionarEmpresaSunat(ruc, nombre){
+  document.getElementById("sunat-ruc").value = ruc;
+  document.getElementById("sunat-nombre-input").value = nombre;
+  document.getElementById("sunat-nombre-results").style.display="none";
+  abrirSunat();
+}
+
+// ═══ NUEVA BÚSQUEDA SUNAT ═══
+function nuevaBusquedaSunat(){
+  document.getElementById("sunat-ruc").value = "";
+  document.getElementById("sunat-nombre-input").value = "";
+  document.getElementById("sunat-nombre-results").style.display="none";
+  document.getElementById("res-sunat-links").style.display="none";
+  document.getElementById("sunat-real-card").style.display="none";
+  document.getElementById("sunat-real-card").innerHTML="";
+  window.scrollTo({top:0,behavior:"smooth"});
+  setTimeout(()=>document.getElementById("sunat-nombre-input").focus(),300);
+}
+
+// Close sunat nombre dropdown on outside click
+document.addEventListener("click", e=>{
+  if(!e.target.closest("#sunat-nombre-input")&&!e.target.closest("#sunat-nombre-results")){
+    const b=document.getElementById("sunat-nombre-results");
+    if(b) b.style.display="none";
+  }
+});
 
 // ═══ BUSCAR POR RUC AUTO ═══
 function buscarPorRucAuto(val){
