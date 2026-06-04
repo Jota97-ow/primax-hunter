@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--orange)}
   </div>
   <div>
     <div class="logo-text">PRIMAX HUNTER</div>
-    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 07:40am</div>
+    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 07:50am</div>
   </div>
 </div>
 
@@ -829,37 +829,55 @@ async function abrirSunat(){
 }
 
 function renderSunatData(d){
+  // Build full domicilio from all address fields
+  const dir = [
+    d.via_tipo, d.via_nombre, 
+    d.numero && d.numero!=="-" ? "NRO "+d.numero : "",
+    d.interior && d.interior!=="-" ? "INT "+d.interior : "",
+    d.zona_codigo && d.zona_codigo!=="-" ? d.zona_codigo : "",
+    d.zona_tipo && d.zona_tipo!=="-" ? d.zona_tipo : ""
+  ].filter(Boolean).join(" ");
+  
+  const domicilio = dir || d.direccion || "—";
+  const ubigeo = [d.distrito, d.provincia, d.departamento].filter(Boolean).join(" · ");
+
+  if(d.razon_social) document.getElementById("sunat-nombre").textContent = d.razon_social;
+
   document.getElementById("sunat-real-card").innerHTML = `
     <div class="card-title">📋 Datos SUNAT <span class="real-badge">✅ Real</span></div>
+    
     <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social||"—"}</div></div>
+    <div class="sf"><div class="sl">RUC</div><div class="sv">${d.numero_documento||"—"}</div></div>
+    
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-      <span class="badge ${(d.estado||"").includes("ACTIVO")?"b-green":"b-gray"}">${d.estado||"—"}</span>
+      <span class="badge ${(d.estado||"").includes("ACTIVO")?"b-green":"b-red"}">${d.estado||"—"}</span>
       <span class="badge ${(d.condicion||"").includes("HABIDO")?"b-green":"b-red"}">${d.condicion||"—"}</span>
+      ${d.es_buen_contribuyente?'<span class="badge b-blue">⭐ Buen contribuyente</span>':""}
     </div>
-    <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo||"—"}</div></div>
-    <div class="sf"><div class="sl">Inicio actividades</div><div class="sv">${d.inicio_actividades||"—"}</div></div>
-    <div class="sf" style="margin-bottom:${d.representantes&&d.representantes.length?'10':'0'}px">
-      <div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio||"—"}</div>
+
+    <div class="sf"><div class="sl">Tipo de empresa</div><div class="sv">${d.tipo||"—"}</div></div>
+    <div class="sf"><div class="sl">Actividad económica</div><div class="sv" style="font-size:13px">${d.actividad_economica||"—"}</div></div>
+    <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${domicilio}</div></div>
+    ${ubigeo?`<div class="sf"><div class="sl">Ubicación</div><div class="sv">${ubigeo}</div></div>`:""}
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0">
+      ${d.numero_trabajadores?`<div style="background:#f9fafb;border-radius:8px;padding:8px;text-align:center;border:.5px solid var(--border)"><div style="font-size:10px;color:#9ca3af;font-weight:700">TRABAJADORES</div><div style="font-size:18px;font-weight:900">${d.numero_trabajadores}</div></div>`:""}
+      ${d.tipo_facturacion?`<div style="background:#f9fafb;border-radius:8px;padding:8px;text-align:center;border:.5px solid var(--border)"><div style="font-size:10px;color:#9ca3af;font-weight:700">FACTURACIÓN</div><div style="font-size:11px;font-weight:700;margin-top:2px">${d.tipo_facturacion}</div></div>`:""}
     </div>
-    ${d.representantes&&d.representantes.filter(r=>r.nombre).length?`
-    <div style="margin-top:4px">
-      <div class="sl" style="margin-bottom:6px">REPRESENTANTES LEGALES</div>
-      ${d.representantes.filter(r=>r.nombre).map(r=>`
-        <div style="background:#f9fafb;border-radius:8px;padding:9px 11px;margin-bottom:6px;border:.5px solid var(--border)">
-          <div style="font-weight:800;font-size:13px">${r.nombre}</div>
-          <div style="font-size:12px;color:#9ca3af;margin-top:2px">${r.cargo||"—"}${r.dni?" · DNI: "+r.dni:""}</div>
-          ${r.desde?`<div style="font-size:11px;color:#bbb;margin-top:1px">Desde: ${r.desde}</div>`:""}
-        </div>`).join("")}
-    </div>`:""}
-    ${d.establecimientos&&d.establecimientos.length?`
+
+    ${d.locales_anexos && d.locales_anexos.length ? `
     <div style="margin-top:8px">
-      <div class="sl" style="margin-bottom:6px">ESTABLECIMIENTOS ANEXOS (${d.establecimientos.length})</div>
-      ${d.establecimientos.map((e,i)=>`
+      <div class="sl" style="margin-bottom:6px">LOCALES ANEXOS (${d.locales_anexos.length})</div>
+      ${d.locales_anexos.map((e,i)=>`
         <div style="display:flex;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);font-size:12px">
-          <div style="width:28px;height:28px;border-radius:6px;background:#fff7ed;color:#F47920;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${e.codigo||i+1}</div>
-          <div><div style="font-weight:700">${e.tipo||"Establecimiento"}</div><div style="color:#9ca3af">${e.direccion||"—"}</div></div>
+          <div style="width:24px;height:24px;border-radius:6px;background:#fff7ed;color:#F47920;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${i+1}</div>
+          <div style="font-weight:600">${typeof e==="string"?e:JSON.stringify(e)}</div>
         </div>`).join("")}
-    </div>`:""}`;
+    </div>` : ""}
+
+    <div style="margin-top:10px;padding:8px 10px;background:#eff6ff;border-radius:8px;font-size:11px;color:#1e3a8a;font-weight:700">
+      ℹ️ Para representantes legales y establecimientos anexos → botón rojo "Ver en SUNAT"
+    </div>`;
 }
 
 function renderSunatBase(ruc, st){
