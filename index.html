@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--orange)}
   </div>
   <div>
     <div class="logo-text">PRIMAX HUNTER</div>
-    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 07:26am</div>
+    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 07:40am</div>
   </div>
 </div>
 
@@ -752,7 +752,7 @@ async function abrirSunat(){
   const st = STATIONS.find(s => s[1] === ruc);
 
   // Show base info immediately
-  document.getElementById("sunat-nombre").textContent = st ? st[2] : `Consultando RUC ${ruc}...`;
+  document.getElementById("sunat-nombre").textContent = st ? st[2] : `RUC: ${ruc}`;
   document.getElementById("sunat-ruc-display").textContent = `RUC: ${ruc}${st ? " · " + st[5] + " · " + st[4] : ""}`;
 
   if(st){
@@ -797,121 +797,69 @@ async function abrirSunat(){
     document.getElementById("sunat-campo-data").innerHTML = "";
   }
 
-  // Show results div
+  // Show results
   document.getElementById("res-sunat-links").style.display = "block";
   setTimeout(()=>document.getElementById("res-sunat-links").scrollIntoView({behavior:"smooth"}), 100);
 
-  // Now fetch real SUNAT data via Claude web search
-  const apiKey = getApiKey();
-  if(!apiKey){
-    guardarHistoria({tipo:"sunat", ruc, nombre: st ? st[2] : ruc, fecha: new Date().toLocaleString("es-PE")});
-    return;
-  }
-
-  // Show loading in sunat-real-data card
+  // Fetch real SUNAT data via Cloudflare Worker
   document.getElementById("sunat-real-card").style.display = "block";
   document.getElementById("sunat-real-card").innerHTML = `
     <div class="card-title">🔍 Consultando SUNAT...</div>
-    <div style="text-align:center;padding:16px"><div class="spin"></div></div>`;
+    <div style="text-align:center;padding:16px"><div class="spin" style="margin:0 auto"></div></div>`;
 
   try {
-    const prompt = `Busca en SUNAT Perú los datos del RUC ${ruc}.
+    const workerUrl = `https://solitary-lake-171d.primax-dealers.workers.dev/?ruc=${ruc}`;
+    const res = await fetch(workerUrl);
+    if(!res.ok) throw new Error("Worker error: " + res.status);
+    const d = await res.json();
+    if(d.error) throw new Error(d.error);
 
-Usa web_search para buscar: "site:e-consultaruc.sunat.gob.pe ${ruc}" o busca directamente en SUNAT.
+    // Update name with real SUNAT name
+    if(d.razon_social) document.getElementById("sunat-nombre").textContent = d.razon_social;
 
-Necesito estos datos REALES y EXACTOS del RUC ${ruc}:
-1. Razón social
-2. Estado (ACTIVO/BAJA/etc)
-3. Condición (HABIDO/NO HABIDO)
-4. Tipo de contribuyente
-5. Fecha de inicio de actividades
-6. Domicilio fiscal completo
-7. Representantes legales (nombre, cargo, DNI, fecha desde)
-8. Establecimientos anexos (código, dirección)
-
-Responde SOLO con JSON válido:
-{
-  "razon_social": "",
-  "estado": "",
-  "condicion": "",
-  "tipo": "",
-  "inicio_actividades": "",
-  "domicilio": "",
-  "representantes": [{"nombre":"","cargo":"","dni":"","desde":""}],
-  "establecimientos": [{"codigo":"","tipo":"","direccion":""}],
-  "fuente": "SUNAT"
-}`;
-
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2000,
-        tools: [{"type": "web_search_20250305", "name": "web_search"}],
-        messages: [{role: "user", content: prompt}]
-      })
-    });
-
-    if(!res.ok) throw new Error("API error: " + res.status);
-    
-    const data = await res.json();
-    const text = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
-    const j1 = text.indexOf("{"), j2 = text.lastIndexOf("}");
-    
-    if(j1 >= 0 && j2 > j1){
-      const d = JSON.parse(text.slice(j1, j2+1));
-      
-      // Update name with real data
-      if(d.razon_social) document.getElementById("sunat-nombre").textContent = d.razon_social;
-      
-      document.getElementById("sunat-real-card").innerHTML = `
-        <div class="card-title">✅ Datos SUNAT <span class="real-badge">Real</span></div>
-        <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social||"—"}</div></div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-          <span class="badge ${(d.estado||"").includes("ACTIVO")?"b-green":"b-gray"}">${d.estado||"—"}</span>
-          <span class="badge ${(d.condicion||"").includes("HABIDO")?"b-green":"b-red"}">${d.condicion||"—"}</span>
-        </div>
-        <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo||"—"}</div></div>
-        <div class="sf"><div class="sl">Inicio actividades</div><div class="sv">${d.inicio_actividades||"—"}</div></div>
-        <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio||"—"}</div></div>
-        ${d.representantes&&d.representantes.length?`
-        <div style="margin-top:10px">
-          <div class="sl" style="margin-bottom:6px">REPRESENTANTES LEGALES</div>
-          ${d.representantes.map(r=>`
-            <div style="background:#f9fafb;border-radius:8px;padding:9px 11px;margin-bottom:6px;border:.5px solid var(--border)">
-              <div style="font-weight:800;font-size:13px">${r.nombre||"—"}</div>
-              <div style="font-size:12px;color:#9ca3af;margin-top:2px">${r.cargo||"—"} · DNI: ${r.dni||"—"}</div>
-              <div style="font-size:11px;color:#bbb;margin-top:1px">Desde: ${r.desde||"—"}</div>
-            </div>`).join("")}
-        </div>`:""}
-        ${d.establecimientos&&d.establecimientos.length?`
-        <div style="margin-top:10px">
-          <div class="sl" style="margin-bottom:6px">ESTABLECIMIENTOS ANEXOS (${d.establecimientos.length})</div>
-          ${d.establecimientos.map((e,i)=>`
-            <div style="display:flex;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);font-size:12px">
-              <div style="width:28px;height:28px;border-radius:6px;background:#fff7ed;color:#F47920;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${e.codigo||i+1}</div>
-              <div><div style="font-weight:700">${e.tipo||"Establecimiento"}</div><div style="color:#9ca3af">${e.direccion||"—"}</div></div>
-            </div>`).join("")}
-        </div>`:""}`;
-    } else {
-      document.getElementById("sunat-real-card").innerHTML = `
-        <div class="card-title">⚠️ No se pudo obtener datos automáticos</div>
-        <p style="font-size:13px;color:#9ca3af">Usa el botón rojo para ver en SUNAT directamente.</p>`;
-    }
+    renderSunatData(d);
   } catch(e) {
-    console.error("SUNAT fetch error:", e);
+    console.error("SUNAT Worker error:", e);
     document.getElementById("sunat-real-card").innerHTML = `
-      <div class="card-title">⚠️ Error al consultar</div>
-      <p style="font-size:13px;color:#9ca3af">Usa el botón rojo para ver en SUNAT directamente.</p>`;
+      <div class="card-title">⚠️ No se pudo obtener datos</div>
+      <p style="font-size:13px;color:#9ca3af;font-weight:600">Usa el botón rojo para ver en SUNAT directamente.</p>`;
   }
 
-  guardarHistoria({tipo:"sunat", ruc, nombre: st ? st[2] : ruc, fecha: new Date().toLocaleString("es-PE")});
+  guardarHistoria({tipo:"sunat", ruc, nombre:st?st[2]:ruc, fecha:new Date().toLocaleString("es-PE")});
+}
+
+function renderSunatData(d){
+  document.getElementById("sunat-real-card").innerHTML = `
+    <div class="card-title">📋 Datos SUNAT <span class="real-badge">✅ Real</span></div>
+    <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social||"—"}</div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      <span class="badge ${(d.estado||"").includes("ACTIVO")?"b-green":"b-gray"}">${d.estado||"—"}</span>
+      <span class="badge ${(d.condicion||"").includes("HABIDO")?"b-green":"b-red"}">${d.condicion||"—"}</span>
+    </div>
+    <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo||"—"}</div></div>
+    <div class="sf"><div class="sl">Inicio actividades</div><div class="sv">${d.inicio_actividades||"—"}</div></div>
+    <div class="sf" style="margin-bottom:${d.representantes&&d.representantes.length?'10':'0'}px">
+      <div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio||"—"}</div>
+    </div>
+    ${d.representantes&&d.representantes.filter(r=>r.nombre).length?`
+    <div style="margin-top:4px">
+      <div class="sl" style="margin-bottom:6px">REPRESENTANTES LEGALES</div>
+      ${d.representantes.filter(r=>r.nombre).map(r=>`
+        <div style="background:#f9fafb;border-radius:8px;padding:9px 11px;margin-bottom:6px;border:.5px solid var(--border)">
+          <div style="font-weight:800;font-size:13px">${r.nombre}</div>
+          <div style="font-size:12px;color:#9ca3af;margin-top:2px">${r.cargo||"—"}${r.dni?" · DNI: "+r.dni:""}</div>
+          ${r.desde?`<div style="font-size:11px;color:#bbb;margin-top:1px">Desde: ${r.desde}</div>`:""}
+        </div>`).join("")}
+    </div>`:""}
+    ${d.establecimientos&&d.establecimientos.length?`
+    <div style="margin-top:8px">
+      <div class="sl" style="margin-bottom:6px">ESTABLECIMIENTOS ANEXOS (${d.establecimientos.length})</div>
+      ${d.establecimientos.map((e,i)=>`
+        <div style="display:flex;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);font-size:12px">
+          <div style="width:28px;height:28px;border-radius:6px;background:#fff7ed;color:#F47920;font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0">${e.codigo||i+1}</div>
+          <div><div style="font-weight:700">${e.tipo||"Establecimiento"}</div><div style="color:#9ca3af">${e.direccion||"—"}</div></div>
+        </div>`).join("")}
+    </div>`:""}`;
 }
 
 function renderSunatBase(ruc, st){
