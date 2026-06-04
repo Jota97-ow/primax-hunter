@@ -736,7 +736,7 @@ function openDetail(i){
       <div class="sl" style="margin-bottom:6px">Todos los productos</div>
       ${s.productos_raw.map(p=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border);font-size:13px;font-weight:700"><span>${p.producto}</span><span>S/${p.precioVenta.toFixed(2)}</span></div>`).join("")}
     </div>`:""}
-    <button class="btn" style="margin-top:16px" onclick="closeModal();irASunat('${s.codigo}')">🏢 Consultar en SUNAT →</button>
+    <button class="btn" style="margin-top:16px" onclick="closeModal();irASunat(getRucFromCodigo('${s.codigo}') || '${s.codigo}')">🏢 Consultar en SUNAT →</button>
   `;
   document.getElementById("modal").classList.add("open");
 }
@@ -903,45 +903,7 @@ function consultarSunat(){ abrirSunat(); }
 // Keep consultarSunat as alias for backward compatibility
 function consultarSunat(){ abrirSunat(); }
 
-function renderSunat(d){
-  const tC=d.tamano==="grande"?"b-red":d.tamano==="mediano"?"b-amber":"b-green";
-  document.getElementById("res-sunat").innerHTML=`
-    <div class="card">
-      <div class="card-title">📋 Datos SUNAT</div>
-      <div class="sf"><div class="sl">RUC</div><div class="sv">${d.ruc}</div></div>
-      <div class="sf"><div class="sl">Razón Social</div><div class="sv">${d.razon_social}</div></div>
-      ${d.nombre_comercial?`<div class="sf"><div class="sl">Nombre Comercial</div><div class="sv">${d.nombre_comercial}</div></div>`:""}
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
-        <span class="badge ${d.estado_ruc==="ACTIVO"?"b-green":"b-red"}">${d.estado_ruc}</span>
-        <span class="badge ${d.condicion_ruc==="HABIDO"?"b-green":"b-red"}">${d.condicion_ruc}</span>
-        <span class="badge ${tC}">Cliente ${d.tamano}</span>
-      </div>
-      <div class="sf"><div class="sl">Tipo</div><div class="sv">${d.tipo_empresa}</div></div>
-      <div class="sf"><div class="sl">Inicio operaciones</div><div class="sv">${d.inicio_actividades}</div></div>
-      <div class="sf"><div class="sl">Domicilio fiscal</div><div class="sv">${d.domicilio_fiscal}</div></div>
-    </div>
-    <div class="card">
-      <div class="card-title">👤 Rep. legal y socios</div>
-      <div class="sf"><div class="sl">Representante Legal</div><div class="sv">${d.rep_legal.nombre} <span style="color:#9ca3af;font-size:12px">DNI: ${d.rep_legal.dni}</span></div></div>
-      ${(d.socios||[]).map(s=>`<div style="background:#f9fafb;border-radius:10px;padding:10px 12px;margin-bottom:6px;border:.5px solid var(--border)"><div style="font-weight:800;font-size:13px">${s.nombre}</div><div style="font-size:12px;color:#9ca3af;margin-top:2px;font-weight:600">${s.cargo}${s.participacion?" · "+s.participacion:""}</div></div>`).join("")}
-    </div>
-    ${(d.establecimientos_anexos||[]).length?`<div class="card"><div class="card-title">⛽ Red (${d.num_establecimientos} estaciones)</div><div class="insight" style="margin-bottom:10px"><div class="insight-t">💡 Leverage</div><p>Este cliente opera <b>${d.num_establecimientos} estaciones</b>. Afiliar toda la red multiplica el volumen.</p></div>${d.establecimientos_anexos.map((e,i)=>`<div class="citem"><div class="cicon" style="font-weight:900;font-size:12px;color:#6b7280">${i+2}</div><div><div style="font-weight:800;font-size:13px">${e.nombre||"Estación anexa"}</div><div style="font-size:12px;color:#9ca3af;font-weight:600">${e.direccion}</div></div></div>`).join("")}</div>`:""}
-    <div class="card">
-      <div class="card-title">📞 Contactos</div>
-      ${(d.contactos||[]).map(c=>{const icons={email:"📧",telefono:"📞",celular:"📱"};return`<div class="citem"><div class="cicon">${icons[c.tipo]||"📌"}</div><div style="flex:1"><div style="font-weight:800;font-size:13px">${c.valor}</div><div style="font-size:11px;color:#9ca3af;font-weight:600">Fuente: ${c.fuente}</div></div></div>`;}).join("")}
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        ${d.digital.web?`<a href="${d.digital.web}" target="_blank" class="tag">🌐 Web</a>`:""}
-        ${d.digital.linkedin?`<a href="${d.digital.linkedin}" target="_blank" class="tag">💼 LinkedIn</a>`:""}
-        ${d.digital.instagram?`<a href="https://instagram.com/${d.digital.instagram.replace("@","")}" target="_blank" class="tag">📸 ${d.digital.instagram}</a>`:""}
-      </div>
-    </div>
-    <div class="card" style="border:2px solid var(--orange)">
-      <div class="card-title" style="color:var(--orange)">🎯 Estrategia Primax</div>
-      <div class="sf"><div class="sl">Volumen estimado</div><div class="sv">${d.volumen_estimado}</div></div>
-      <div class="sf" style="margin-bottom:0"><div class="sl">Oportunidad</div><div class="sv" style="font-size:13px">${d.oportunidad}</div></div>
-      <div class="strat"><div class="strat-t">Acercamiento recomendado</div><p>${d.estrategia}</p></div>
-    </div>`;
-}
+function renderSunat(d){ console.log("renderSunat deprecated"); }
 
 // ═══════════════════════════════════════════
 // API KEY
