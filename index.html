@@ -159,7 +159,7 @@ input:focus,select:focus{border-color:var(--orange)}
   </div>
   <div>
     <div class="logo-text">PRIMAX HUNTER</div>
-    <div class="logo-sub">v4.2 · Actualizado 04/jun/2026 08:00am</div>
+    <div class="logo-sub">v1.0</div>
   </div>
 </div>
 
@@ -544,51 +544,117 @@ function buscarPorRuc(){
 // ═══════════════════════════════════════════
 // BUSCAR POR COORDENADAS — FACILITO REAL
 // ═══════════════════════════════════════════
+
+// Proxies CORS disponibles (se prueban en orden)
+const CORS_PROXIES = [
+  u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+];
+
+async function fetchConProxy(url) {
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const r = await fetch(proxy(url), { signal: AbortSignal.timeout(8000) });
+      if (!r.ok) continue;
+      const text = await r.text();
+      if (text && text.length > 10) return text;
+    } catch(e) { continue; }
+  }
+  return null;
+}
+
+// Endpoints alternativos de Facilito (el bounding-box fue deprecado)
+// Ahora se usa: getPointsByCoordinate (nuevo endpoint móvil) o por departamento
+async function fetchFacilito(lat, lon, radio) {
+  // ── Opción 1: Nuevo endpoint por coordenada + radio (app móvil Facilito v2)
+  const urlCoord = `https://www.facilito.gob.pe/facilito/actions/MapaAction.do?method=getPointsByCoordinate&tipo=LIQ&latitud=${lat}&longitud=${lon}&radio=${radio * 1000}`;
+  let texto = await fetchConProxy(urlCoord);
+  if (texto) {
+    try {
+      const data = JSON.parse(texto);
+      if (Array.isArray(data) && data.length > 0) return data;
+    } catch(e) {}
+  }
+
+  // ── Opción 2: Endpoint legacy bounding-box (por si vuelve a funcionar)
+  const deltaLat = (radio * 1.3) / 111.0;
+  const deltaLon = (radio * 1.3) / (111.0 * Math.cos(lat * Math.PI / 180));
+  const urlBB = `https://www.facilito.gob.pe/facilito/actions/MapaAction.do?method=getPoints&tipo=LIQ&producto=40&latitudeHI=${lat+deltaLat}&longitudeHI=${lon+deltaLon}&latitudeLO=${lat-deltaLat}&longitudeLO=${lon-deltaLon}`;
+  texto = await fetchConProxy(urlBB);
+  if (texto) {
+    try {
+      const data = JSON.parse(texto);
+      if (Array.isArray(data) && data.length > 0) return data;
+    } catch(e) {}
+  }
+
+  // ── Opción 3: Endpoint público Osinergmin GIS (datos abiertos)
+  const buffer = radio * 0.009; // grados aprox
+  const urlGIS = `https://gisem.osinergmin.gob.pe/server/rest/services/Hosted/EESS_Precios/FeatureServer/0/query?where=1%3D1&outFields=*&geometry=${lon-buffer}%2C${lat-buffer}%2C${lon+buffer}%2C${lat+buffer}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outSR=4326&f=json`;
+  texto = await fetchConProxy(urlGIS);
+  if (texto) {
+    try {
+      const gis = JSON.parse(texto);
+      if (gis.features && gis.features.length > 0) {
+        // Normalizar al formato Facilito
+        return gis.features.map(f => ({
+          codigoOsinergmin: f.attributes.CODIGO_OSI || f.attributes.cod_osi || "",
+          unidad: f.attributes.RAZON_SOCIAL || f.attributes.nombre || "—",
+          direccion: f.attributes.DIRECCION || f.attributes.direccion || "—",
+          latitud: f.geometry?.y || f.attributes.LATITUD,
+          longitud: f.geometry?.x || f.attributes.LONGITUD,
+          productos: [
+            f.attributes.PRECIO_DIESEL  ? { producto:"DIESEL B5",  precioVenta: f.attributes.PRECIO_DIESEL }  : null,
+            f.attributes.PRECIO_G90     ? { producto:"GASOHOL REGULAR", precioVenta: f.attributes.PRECIO_G90 } : null,
+            f.attributes.PRECIO_G95     ? { producto:"GASOHOL PREMIUM", precioVenta: f.attributes.PRECIO_G95 } : null,
+          ].filter(Boolean)
+        }));
+      }
+    } catch(e) {}
+  }
+
+  return null; // todo falló
+}
+
 async function buscar(){
   const lat=parseFloat(document.getElementById("lat-input").value);
   const lon=parseFloat(document.getElementById("lon-input").value);
   if(isNaN(lat)||isNaN(lon)){alert("Ingresa coordenadas o usa el botón GPS");return;}
   const radio=parseFloat(document.getElementById("radio-sel").value);
 
-  const deltaLat=radio/111.0;
-  const deltaLon=radio/(111.0*Math.cos(lat*Math.PI/180));
-  const latHI=lat+deltaLat*1.2, latLO=lat-deltaLat*1.2;
-  const lonHI=lon+deltaLon*1.2, lonLO=lon-deltaLon*1.2;
-
   document.getElementById("res-precios").style.display="none";
   document.getElementById("loading-precios").style.display="block";
   document.getElementById("btn-buscar").disabled=true;
 
-  const url=`https://www.facilito.gob.pe/facilito/actions/MapaAction.do?method=getPoints&tipo=LIQ&producto=40&latitudeHI=${latHI}&longitudeHI=${lonHI}&latitudeLO=${latLO}&longitudeLO=${lonLO}`;
-
   try{
-    const res=await fetch("https://corsproxy.io/?"+encodeURIComponent(url));
-    if(!res.ok)throw new Error("Sin respuesta de Facilito");
-    const data=await res.json();
-    if(!data||!data.length){
-      alert("No se encontraron estaciones. Prueba con un radio mayor.");
+    const data = await fetchFacilito(lat, lon, radio);
+
+    if(!data || !data.length){
+      alert("No se encontraron estaciones. Prueba con un radio mayor o verifica tu conexión.");
       document.getElementById("loading-precios").style.display="none";
       document.getElementById("btn-buscar").disabled=false;
       return;
     }
+
     const estaciones=data.map(e=>{
       const bandera=getBandera(e.codigoOsinergmin);
-      const dist=haversine(lat,lon,e.latitud,e.longitud);
+      const dist=haversine(lat,lon,parseFloat(e.latitud),parseFloat(e.longitud));
       let diesel=null,regular=null,premium=null;
       (e.productos||[]).forEach(p=>{
         const n=p.producto.toUpperCase();
         if(n.includes("DIESEL")||n.includes("B5"))diesel=p.precioVenta;
-        else if(n.includes("REGULAR"))regular=p.precioVenta;
-        else if(n.includes("PREMIUM"))premium=p.precioVenta;
+        else if(n.includes("REGULAR")||n.includes("90")||n.includes("84"))regular=p.precioVenta;
+        else if(n.includes("PREMIUM")||n.includes("95")||n.includes("97")||n.includes("98"))premium=p.precioVenta;
       });
-      return{codigo:e.codigoOsinergmin,nombre:e.unidad,direccion:e.direccion,lat:e.latitud,lon:e.longitud,bandera,dist_km:Math.round(dist*100)/100,diesel,regular,premium,productos_raw:e.productos};
-    }).filter(e=>e.dist_km<=radio).sort((a,b)=>a.dist_km-b.dist_km);
+      return{codigo:e.codigoOsinergmin,nombre:e.unidad,direccion:e.direccion,lat:parseFloat(e.latitud),lon:parseFloat(e.longitud),bandera,dist_km:Math.round(dist*100)/100,diesel,regular,premium,productos_raw:e.productos};
+    }).filter(e=>e.dist_km<=radio && !isNaN(e.lat)).sort((a,b)=>a.dist_km-b.dist_km);
 
     stData={centro:{lat,lon},estaciones,radio,fecha:new Date().toLocaleDateString("es-PE",{day:"2-digit",month:"2-digit",year:"numeric"}),hora:new Date().toLocaleTimeString("es-PE",{hour:"2-digit",minute:"2-digit"})};
     guardarHistoria({tipo:"precios",lat,lon,nombre:`${estaciones.length} estaciones · radio ${radio}km`,fecha:new Date().toLocaleString("es-PE"),data:stData});
     renderPrecios(stData);
   }catch(e){
-    console.error(e);
+    console.error("Error Facilito:", e);
     alert("Error al conectar con Facilito. Verifica tu internet e intenta de nuevo.");
   }
   document.getElementById("loading-precios").style.display="none";
